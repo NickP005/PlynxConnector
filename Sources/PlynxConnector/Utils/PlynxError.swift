@@ -45,6 +45,9 @@ public enum PlynxError: Error, LocalizedError, Sendable {
     /// TLS/SSL error
     case tlsError(String)
     
+    /// Unexpected response type from server
+    case unexpectedResponse
+    
     public var errorDescription: String? {
         switch self {
         case .connectionFailed(let underlying):
@@ -85,6 +88,9 @@ public enum PlynxError: Error, LocalizedError, Sendable {
             
         case .tlsError(let message):
             return "TLS error: \(message)"
+            
+        case .unexpectedResponse:
+            return "Unexpected response from server"
         }
     }
 }

@@ -27,6 +27,9 @@ public struct BlynkMessage: Sendable {
     /// Message body (empty for some commands like PING)
     public let body: String
     
+    /// Raw binary data of the body (for binary commands like loadProfileGzipped)
+    public let rawData: Data?
+    
     /// For response messages, this contains the response code
     public var responseCode: ResponseCode? {
         guard command == .response else { return nil }
@@ -44,10 +47,11 @@ public struct BlynkMessage: Sendable {
     public static let separatorString = "\0"
     
     /// Create a new message
-    public init(command: CommandCode, messageId: UInt16, body: String = "") {
+    public init(command: CommandCode, messageId: UInt16, body: String = "", rawData: Data? = nil) {
         self.command = command
         self.messageId = messageId
         self.body = body
+        self.rawData = rawData
     }
     
     /// Create a message with multiple body parts joined by separator
@@ -55,6 +59,7 @@ public struct BlynkMessage: Sendable {
         self.command = command
         self.messageId = messageId
         self.body = bodyParts.joined(separator: Self.separatorString)
+        self.rawData = nil
     }
     
     /// Serialize the message to bytes for transmission (mobile protocol - 7 byte header)
@@ -229,7 +234,8 @@ public final class MessageParser: @unchecked Sendable {
         }
         
         print("[MessageParser] Parsed command: \(cmd), bodyLength=\(bodyLength)")
-        let message = BlynkMessage(command: cmd, messageId: messageId, body: body)
+        // Store raw data for binary commands like loadProfileGzipped
+        let message = BlynkMessage(command: cmd, messageId: messageId, body: body, rawData: bodyData)
         return .command(message)
     }
     

@@ -44,6 +44,7 @@ public actor Connector {
     
     private var messageId: UInt16 = 0
     private var pendingResponses: [UInt16: CheckedContinuation<Event, Error>] = [:]
+    private var pendingDataResponses: [UInt16: CheckedContinuation<BlynkMessage, Error>] = [:]
     
     /// Whether the user is authenticated with the server
     private(set) public var authenticated: Bool = false
@@ -325,6 +326,41 @@ public actor Connector {
         pendingResponses[msgId] = continuation
     }
     
+    private func registerPendingDataResponse(msgId: UInt16, continuation: CheckedContinuation<BlynkMessage, Error>) {
+        pendingDataResponses[msgId] = continuation
+    }
+    
+    /// Send an action and wait for a data response (for commands like loadProfileGzipped that return data)
+    private func sendForData(_ action: Action) async throws -> BlynkMessage {
+        guard let socket = socket else {
+            throw PlynxError.notConnected
+        }
+        
+        // Generate message ID
+        messageId = messageId &+ 1
+        let msgId = messageId
+        
+        // Convert action to message
+        let message: BlynkMessage
+        do {
+            message = try action.toMessage(messageId: msgId, encoder: encoder)
+        } catch {
+            throw PlynxError.encodingError(error)
+        }
+        
+        // Send the message
+        try await socket.send(message)
+        
+        // Wait for data response with timeout
+        return try await withTimeout(seconds: responseTimeout) {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<BlynkMessage, Error>) in
+                Task {
+                    await self.registerPendingDataResponse(msgId: msgId, continuation: continuation)
+                }
+            }
+        }
+    }
+    
     // MARK: - Message Handling
     
     private func startMessageHandler() {
@@ -344,6 +380,16 @@ public actor Connector {
             if let continuation = pendingResponses.removeValue(forKey: response.messageId) {
                 let event = Event.response(messageId: response.messageId, code: response.code)
                 continuation.resume(returning: event)
+                return
+            }
+        }
+        
+        // Check if this is a command that acts as a data response (e.g., loadProfileGzipped)
+        if case .command(let message) = parsedMessage {
+            // Some commands are actually responses with data (same msgId as request)
+            if let continuation = pendingDataResponses.removeValue(forKey: message.messageId) {
+                print("[Connector] Command \(message.command) is a data response for msgId \(message.messageId)")
+                continuation.resume(returning: message)
                 return
             }
         }
@@ -479,13 +525,45 @@ public actor Connector {
     /// Load and decode user profile
     /// - Returns: The user profile
     public func loadProfile() async throws -> Profile {
-        let response = try await send(.loadProfile(dashId: nil, published: false))
+        // The server responds to loadProfile with a loadProfileGzipped command containing gzipped JSON
+        let response = try await sendForData(.loadProfile(dashId: nil, published: false))
         
-        // The server sends profile data as a separate message after OK response
-        // We need to wait for the next message which will be the actual data
-        // For now, return empty profile - full implementation would need message queuing
+        guard response.command == .loadProfileGzipped else {
+            print("[Connector] Unexpected response command: \(response.command)")
+            throw PlynxError.unexpectedResponse
+        }
         
-        return Profile()
+        guard let rawData = response.rawData, !rawData.isEmpty else {
+            print("[Connector] No data in profile response")
+            return Profile()
+        }
+        
+        print("[Connector] Received profile data: \(rawData.count) bytes")
+        
+        // Decompress gzip data
+        let decompressedData: Data
+        do {
+            decompressedData = try GzipHelper.decompress(rawData)
+            print("[Connector] Decompressed profile: \(decompressedData.count) bytes")
+        } catch {
+            print("[Connector] Failed to decompress: \(error)")
+            throw PlynxError.decodingError(error)
+        }
+        
+        // Debug: print raw JSON
+        if let jsonString = String(data: decompressedData, encoding: .utf8) {
+            print("[Connector] Profile JSON: \(jsonString.prefix(500))...")
+        }
+        
+        // Decode JSON to Profile
+        do {
+            let profile = try decoder.decode(Profile.self, from: decompressedData)
+            print("[Connector] Decoded profile with \(profile.dashBoards?.count ?? 0) dashboards")
+            return profile
+        } catch {
+            print("[Connector] Failed to decode profile: \(error)")
+            throw PlynxError.decodingError(error)
+        }
     }
     
     /// Write a value to a virtual pin
