@@ -9,7 +9,7 @@ Pod::Spec.new do |s|
   DESC
 
   s.homepage         = 'https://github.com/NickP005/PlynxConnector'
-  s.license          = { :type => 'Proprietary', :file => 'LICENSE' }
+  s.license          = { :type => 'Proprietary', :file => 'swift/LICENSE' }
   s.author           = { 'NickP005' => '' }
   s.source           = { :git => 'https://github.com/NickP005/PlynxConnector.git', :tag => s.version.to_s }
 
@@ -20,7 +20,7 @@ Pod::Spec.new do |s|
 
   s.swift_versions = ['5.5', '5.6', '5.7', '5.8', '5.9', '5.10']
 
-  s.source_files = 'Sources/**/*.swift'
+  s.source_files = 'swift/Sources/**/*.swift'
   
   s.frameworks = 'Foundation', 'Network'
 end

@@ -2,6 +2,7 @@
 .build/
 .swiftpm/
 Package.resolved
+**/Package.resolved
 
 # Xcode
 *.xcodeproj/
@@ -69,3 +70,25 @@ coverage/
 *.zip
 *.tar.gz
 *.rar
+
+# Dart/Flutter
+dart/.dart_tool/
+dart/.packages
+dart/pubspec.lock
+dart/build/
+**/*.g.dart
+**/*.freezed.dart
+
+# Node.js/TypeScript
+node_modules/
+typescript/dist/
+typescript/lib/
+*.tsbuildinfo
+package-lock.json
+yarn.lock
+
+# Kotlin/Android
+kotlin/.gradle/
+kotlin/build/
+kotlin/*.iml
+kotlin/local.properties
