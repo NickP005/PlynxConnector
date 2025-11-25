@@ -211,6 +211,42 @@ public actor PlynxConnector {
         }
     }
     
+    /// Register a new user account
+    /// - Parameters:
+    ///   - email: User email
+    ///   - password: User password
+    ///   - appName: Application name (default: "Plynx")
+    /// - Note: This connects to the server, sends the register command, and disconnects.
+    ///         After successful registration, use `connect()` to login.
+    public func register(email: String, password: String, appName: String = "Plynx") async throws {
+        // Create and connect socket
+        let sock = PlynxSocket(host: host, port: port)
+        self.socket = sock
+        
+        try await sock.connect()
+        socketConnected = true
+        
+        // Start message handler
+        startMessageHandler()
+        
+        // Send register command
+        let response = try await send(.register(email: email, password: password, appName: appName))
+        
+        if case .response(_, let code) = response {
+            if code == .ok {
+                // Registration successful - disconnect and let user login
+                await disconnect()
+                eventsContinuation?.yield(.registered)
+            } else if code == .userAlreadyRegistered {
+                await disconnect()
+                throw PlynxError.authenticationFailed(code)
+            } else {
+                await disconnect()
+                throw PlynxError.serverError(code)
+            }
+        }
+    }
+    
     /// Disconnect from the server
     public func disconnect() async {
         pingTask?.cancel()
