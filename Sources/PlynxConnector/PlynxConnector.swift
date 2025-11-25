@@ -418,7 +418,7 @@ public actor Connector {
         if wasAuthenticated && (storedEmail != nil || storedShareToken != nil) {
             print("[Connector] Starting automatic reconnection...")
             Task {
-                await startAutoReconnect()
+                await self.startAutoReconnect()
             }
         }
     }
@@ -435,48 +435,48 @@ public actor Connector {
         reconnectTask?.cancel()
         reconnectAttempt = 0
         
-        reconnectTask = Task { [weak self] in
-            while !Task.isCancelled {
-                guard let self = self else { break }
-                
-                self.reconnectAttempt += 1
-                
-                guard self.reconnectAttempt <= self.maxReconnectAttempts else {
-                    print("[Connector] Max reconnect attempts reached, giving up")
-                    break
+        while reconnectAttempt < maxReconnectAttempts {
+            reconnectAttempt += 1
+            
+            // Calculate delay with exponential backoff
+            let delay = min(baseReconnectDelay * pow(1.5, Double(reconnectAttempt - 1)), maxReconnectDelay)
+            print("[Connector] Reconnect attempt \(reconnectAttempt)/\(maxReconnectAttempts) in \(String(format: "%.1f", delay))s...")
+            
+            eventsContinuation?.yield(.reconnecting(attempt: reconnectAttempt))
+            
+            do {
+                try await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+            } catch {
+                // Task was cancelled
+                print("[Connector] Reconnect cancelled during sleep")
+                return
+            }
+            
+            // Try to reconnect
+            do {
+                if let email = storedEmail, let password = storedPassword, let appName = storedAppName {
+                    print("[Connector] Attempting reconnect with email credentials...")
+                    try await reconnectWithCredentials(email: email, password: password, appName: appName)
+                    print("[Connector] Reconnection successful!")
+                    reconnectAttempt = 0
+                    return
+                } else if let token = storedShareToken {
+                    print("[Connector] Attempting reconnect with share token...")
+                    try await reconnectWithShareToken(token)
+                    print("[Connector] Reconnection successful!")
+                    reconnectAttempt = 0
+                    return
+                } else {
+                    print("[Connector] No stored credentials for reconnection")
+                    return
                 }
-                
-                // Calculate delay with exponential backoff
-                let delay = min(self.baseReconnectDelay * pow(1.5, Double(self.reconnectAttempt - 1)), self.maxReconnectDelay)
-                print("[Connector] Reconnect attempt \(self.reconnectAttempt)/\(self.maxReconnectAttempts) in \(String(format: "%.1f", delay))s...")
-                
-                self.eventsContinuation?.yield(.reconnecting(attempt: self.reconnectAttempt))
-                
-                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
-                
-                guard !Task.isCancelled else { break }
-                
-                // Try to reconnect
-                do {
-                    if let email = self.storedEmail, let password = self.storedPassword, let appName = self.storedAppName {
-                        print("[Connector] Attempting reconnect with email credentials...")
-                        try await self.reconnectWithCredentials(email: email, password: password, appName: appName)
-                        print("[Connector] Reconnection successful!")
-                        self.reconnectAttempt = 0
-                        break
-                    } else if let token = self.storedShareToken {
-                        print("[Connector] Attempting reconnect with share token...")
-                        try await self.reconnectWithShareToken(token)
-                        print("[Connector] Reconnection successful!")
-                        self.reconnectAttempt = 0
-                        break
-                    }
-                } catch {
-                    print("[Connector] Reconnect attempt \(self.reconnectAttempt) failed: \(error)")
-                    // Continue to next attempt
-                }
+            } catch {
+                print("[Connector] Reconnect attempt \(reconnectAttempt) failed: \(error)")
+                // Continue to next attempt
             }
         }
+        
+        print("[Connector] Max reconnect attempts reached, giving up")
     }
     
     private func reconnectWithCredentials(email: String, password: String, appName: String) async throws {
