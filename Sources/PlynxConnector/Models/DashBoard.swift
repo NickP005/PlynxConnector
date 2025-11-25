@@ -8,7 +8,7 @@
 import Foundation
 
 /// Represents a dashboard (project) in Plynx.
-public struct DashBoard: Codable, Sendable, Identifiable {
+public struct DashBoard: Codable, Sendable, Identifiable, Hashable {
     /// Dashboard ID
     public var id: Int
     
@@ -66,6 +66,16 @@ public struct DashBoard: Codable, Sendable, Identifiable {
     public init(id: Int = 0, name: String? = nil) {
         self.id = id
         self.name = name
+    }
+    
+    // MARK: - Hashable
+    
+    public func hash(into hasher: inout Hasher) {
+        hasher.combine(id)
+    }
+    
+    public static func == (lhs: DashBoard, rhs: DashBoard) -> Bool {
+        lhs.id == rhs.id
     }
 }
 
