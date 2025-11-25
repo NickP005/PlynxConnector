@@ -413,6 +413,128 @@ public actor Connector {
             continuation.resume(throwing: PlynxError.connectionClosed)
         }
         pendingDataResponses.removeAll()
+        
+        // Avvia riconnessione automatica se avevamo credenziali
+        if wasAuthenticated && (storedEmail != nil || storedShareToken != nil) {
+            print("[Connector] Starting automatic reconnection...")
+            Task {
+                await startAutoReconnect()
+            }
+        }
+    }
+    
+    // MARK: - Auto Reconnection
+    
+    private var reconnectTask: Task<Void, Never>?
+    private var reconnectAttempt: Int = 0
+    private let maxReconnectAttempts: Int = 10
+    private let baseReconnectDelay: TimeInterval = 2.0
+    private let maxReconnectDelay: TimeInterval = 30.0
+    
+    private func startAutoReconnect() async {
+        reconnectTask?.cancel()
+        reconnectAttempt = 0
+        
+        reconnectTask = Task { [weak self] in
+            while !Task.isCancelled {
+                guard let self = self else { break }
+                
+                self.reconnectAttempt += 1
+                
+                guard self.reconnectAttempt <= self.maxReconnectAttempts else {
+                    print("[Connector] Max reconnect attempts reached, giving up")
+                    break
+                }
+                
+                // Calculate delay with exponential backoff
+                let delay = min(self.baseReconnectDelay * pow(1.5, Double(self.reconnectAttempt - 1)), self.maxReconnectDelay)
+                print("[Connector] Reconnect attempt \(self.reconnectAttempt)/\(self.maxReconnectAttempts) in \(String(format: "%.1f", delay))s...")
+                
+                self.eventsContinuation?.yield(.reconnecting(attempt: self.reconnectAttempt))
+                
+                try? await Task.sleep(nanoseconds: UInt64(delay * 1_000_000_000))
+                
+                guard !Task.isCancelled else { break }
+                
+                // Try to reconnect
+                do {
+                    if let email = self.storedEmail, let password = self.storedPassword, let appName = self.storedAppName {
+                        print("[Connector] Attempting reconnect with email credentials...")
+                        try await self.reconnectWithCredentials(email: email, password: password, appName: appName)
+                        print("[Connector] Reconnection successful!")
+                        self.reconnectAttempt = 0
+                        break
+                    } else if let token = self.storedShareToken {
+                        print("[Connector] Attempting reconnect with share token...")
+                        try await self.reconnectWithShareToken(token)
+                        print("[Connector] Reconnection successful!")
+                        self.reconnectAttempt = 0
+                        break
+                    }
+                } catch {
+                    print("[Connector] Reconnect attempt \(self.reconnectAttempt) failed: \(error)")
+                    // Continue to next attempt
+                }
+            }
+        }
+    }
+    
+    private func reconnectWithCredentials(email: String, password: String, appName: String) async throws {
+        // Create new socket
+        let sock = PlynxSocket(host: host, port: port)
+        self.socket = sock
+        
+        try await sock.connect()
+        socketConnected = true
+        
+        // Start message handler
+        startMessageHandler()
+        
+        // Login
+        let response = try await send(.login(email: email, password: password, appName: appName))
+        
+        if case .response(_, let code) = response {
+            if code == .ok {
+                authenticated = true
+                eventsContinuation?.yield(.reconnected)
+                onConnectionStateChanged?(true, true)
+                startPingTimer()
+            } else {
+                throw PlynxError.authenticationFailed(code)
+            }
+        }
+    }
+    
+    private func reconnectWithShareToken(_ token: String) async throws {
+        // Create new socket
+        let sock = PlynxSocket(host: host, port: port)
+        self.socket = sock
+        
+        try await sock.connect()
+        socketConnected = true
+        
+        // Start message handler
+        startMessageHandler()
+        
+        // Share login
+        let response = try await send(.shareLogin(token: token))
+        
+        if case .response(_, let code) = response {
+            if code == .ok {
+                authenticated = true
+                eventsContinuation?.yield(.reconnected)
+                onConnectionStateChanged?(true, true)
+                startPingTimer()
+            } else {
+                throw PlynxError.authenticationFailed(code)
+            }
+        }
+    }
+    
+    /// Stop automatic reconnection attempts
+    public func stopReconnecting() {
+        reconnectTask?.cancel()
+        reconnectTask = nil
     }
     
     private func handleMessage(_ parsedMessage: ParsedMessage) {
