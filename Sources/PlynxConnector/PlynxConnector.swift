@@ -11,7 +11,7 @@ import Foundation
 ///
 /// Example usage:
 /// ```swift
-/// let connector = PlynxConnector(host: "192.168.1.100")
+/// let connector = Connector(host: "192.168.1.100")
 ///
 /// // Listen for events
 /// Task {
@@ -34,7 +34,7 @@ import Foundation
 /// // Write to virtual pin
 /// _ = try await connector.send(.writeVirtualPin(dashId: 1, deviceId: 0, pin: 1, value: "255"))
 /// ```
-public actor PlynxConnector {
+public actor Connector {
     
     // MARK: - Properties
     
