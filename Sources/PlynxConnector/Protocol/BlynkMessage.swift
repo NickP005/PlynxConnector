@@ -219,11 +219,14 @@ public final class MessageParser: @unchecked Sendable {
             return nil
         }
         
-        // Extract body safely
-        let bodyStartIndex = BlynkMessage.headerSize
-        let bodyEndIndex = totalLength
+        // Extract body safely - use startIndex to handle Data's index behavior
+        let bodyStartIndex = buffer.startIndex + BlynkMessage.headerSize
+        let bodyEndIndex = buffer.startIndex + totalLength
         let bodyData = Data(buffer[bodyStartIndex..<bodyEndIndex])
         let body = String(data: bodyData, encoding: .utf8) ?? ""
+        
+        // Debug: print raw body bytes
+        print("[MessageParser] Body bytes: \(bodyData.map { String(format: "%02X", $0) }.joined(separator: " "))")
         
         // Remove parsed message from buffer
         buffer.removeFirst(totalLength)
