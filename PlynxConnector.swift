@@ -325,7 +325,51 @@ public actor PlynxConnector {
                 break
             }
             
+            // Invoke callbacks for specific events
+            invokeCallbacks(for: event)
+            
+            // Yield to async stream
             eventsContinuation?.yield(event)
+        }
+    }
+    
+    /// Invoke registered callbacks for specific event types
+    private func invokeCallbacks(for event: Event) {
+        switch event {
+        case .virtualPinUpdate(let dashId, let deviceId, let pin, let values):
+            onVirtualPinUpdate?(dashId, deviceId, pin, values)
+            onHardwareMessage?(dashId, deviceId, "vw\0\(pin)\0\(values.joined(separator: "\0"))")
+            
+        case .digitalPinUpdate(let dashId, let deviceId, let pin, let value):
+            onDigitalPinUpdate?(dashId, deviceId, pin, value)
+            onHardwareMessage?(dashId, deviceId, "dw\0\(pin)\0\(value)")
+            
+        case .analogPinUpdate(let dashId, let deviceId, let pin, let value):
+            onAnalogPinUpdate?(dashId, deviceId, pin, value)
+            onHardwareMessage?(dashId, deviceId, "aw\0\(pin)\0\(value)")
+            
+        case .hardwareMessage(let dashId, let deviceId, let body):
+            onHardwareMessage?(dashId, deviceId, body)
+            
+        case .widgetPropertyChanged(let dashId, let deviceId, let pin, let property, let value):
+            onWidgetPropertyChanged?(dashId, deviceId, pin, property, value)
+            
+        case .hardwareConnected(let dashId, let deviceId):
+            onHardwareConnected?(dashId, deviceId)
+            
+        case .hardwareDisconnected(let dashId, let deviceId):
+            onHardwareDisconnected?(dashId, deviceId)
+            
+        case .disconnected:
+            let wasConnected = socketConnected
+            socketConnected = false
+            authenticated = false
+            if wasConnected {
+                onConnectionStateChanged?(false, false)
+            }
+            
+        default:
+            break
         }
     }
     
@@ -353,7 +397,12 @@ public actor PlynxConnector {
     
     /// Called when reconnection is needed
     private func handleReconnection() async {
-        guard isAuthenticated else { return }
+        guard authenticated else { return }
+        
+        // Mark as disconnected temporarily during reconnection
+        socketConnected = false
+        authenticated = false
+        onConnectionStateChanged?(false, false)
         
         eventsContinuation?.yield(.reconnecting(attempt: await socket?.currentReconnectAttempt ?? 0))
         
@@ -362,6 +411,9 @@ public actor PlynxConnector {
             do {
                 let response = try await send(.login(email: email, password: password, appName: appName))
                 if case .response(_, let code) = response, code == .ok {
+                    socketConnected = true
+                    authenticated = true
+                    onConnectionStateChanged?(true, true)
                     eventsContinuation?.yield(.reconnected)
                     startPingTimer()
                 }
@@ -372,6 +424,9 @@ public actor PlynxConnector {
             do {
                 let response = try await send(.shareLogin(token: token))
                 if case .response(_, let code) = response, code == .ok {
+                    socketConnected = true
+                    authenticated = true
+                    onConnectionStateChanged?(true, true)
                     eventsContinuation?.yield(.reconnected)
                     startPingTimer()
                 }
@@ -410,13 +465,21 @@ public actor PlynxConnector {
     /// - Parameter dashId: Dashboard ID
     @discardableResult
     public func activateDashboard(_ dashId: Int) async throws -> Event {
-        return try await send(.activateDashboard(dashId: dashId))
+        let result = try await send(.activateDashboard(dashId: dashId))
+        if case .response(_, let code) = result, code == .ok {
+            activeDashboardId = dashId
+        }
+        return result
     }
     
     /// Deactivate all dashboards
     @discardableResult
     public func deactivateAllDashboards() async throws -> Event {
-        return try await send(.deactivateDashboard(dashId: nil))
+        let result = try await send(.deactivateDashboard(dashId: nil))
+        if case .response(_, let code) = result, code == .ok {
+            activeDashboardId = nil
+        }
+        return result
     }
 }
 

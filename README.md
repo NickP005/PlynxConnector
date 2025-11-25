@@ -74,6 +74,81 @@ Task {
 }
 ```
 
+## Connection Status Properties
+
+Check connection and authentication status at any time:
+
+```swift
+// Check if socket is connected
+if plynx.socketConnected {
+    print("Socket connected")
+}
+
+// Check if authenticated
+if plynx.authenticated {
+    print("Logged in and authenticated")
+}
+
+// Get active dashboard ID (if any)
+if let dashId = plynx.activeDashboardId {
+    print("Active dashboard: \(dashId)")
+}
+
+// Combined check (async)
+if await plynx.isConnected {
+    print("Connected and authenticated")
+}
+```
+
+## Using Callbacks
+
+In addition to the async stream, you can register callbacks for specific events:
+
+```swift
+let plynx = PlynxConnector(host: "192.168.1.100", port: 9443)
+
+// Connection state changes
+plynx.onConnectionStateChanged = { connected, authenticated in
+    print("Connection: connected=\(connected), authenticated=\(authenticated)")
+}
+
+// Virtual pin updates from hardware
+plynx.onVirtualPinUpdate = { dashId, deviceId, pin, values in
+    print("V\(pin) = \(values)")
+    // Update UI here
+}
+
+// Digital pin updates
+plynx.onDigitalPinUpdate = { dashId, deviceId, pin, value in
+    print("D\(pin) = \(value)")
+}
+
+// Analog pin updates
+plynx.onAnalogPinUpdate = { dashId, deviceId, pin, value in
+    print("A\(pin) = \(value)")
+}
+
+// Widget property changes (from hardware setProperty)
+plynx.onWidgetPropertyChanged = { dashId, deviceId, pin, property, value in
+    print("Property \(property.rawValue) on pin \(pin) = \(value)")
+}
+
+// Hardware device connected
+plynx.onHardwareConnected = { dashId, deviceId in
+    print("Device \(deviceId) is now online")
+}
+
+// Hardware device disconnected
+plynx.onHardwareDisconnected = { dashId, deviceId in
+    print("Device \(deviceId) went offline")
+}
+
+// Raw hardware messages
+plynx.onHardwareMessage = { dashId, deviceId, body in
+    print("Raw message from device \(deviceId): \(body)")
+}
+```
+
 ## Available Actions
 
 ### Authentication

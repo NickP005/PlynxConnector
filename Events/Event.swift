@@ -163,6 +163,22 @@ public enum Event: Sendable {
     /// App sync data received
     case appSyncData(dashId: Int, body: String)
     
+    // MARK: - Sharing Events
+    
+    /// Sharing state changed (another user started/stopped sharing)
+    case sharingChanged(dashId: Int, active: Bool)
+    
+    /// Dashboard activated by another shared user
+    case dashboardActivatedByOther(dashId: Int)
+    
+    /// Dashboard deactivated by another shared user
+    case dashboardDeactivatedByOther(dashId: Int)
+    
+    // MARK: - App Version Events
+    
+    /// Outdated app notification from server
+    case outdatedAppNotification(message: String)
+    
     // MARK: - Notification Events
     
     /// Email sent successfully
@@ -231,6 +247,29 @@ extension Event {
             if parts.count >= 2, let dashId = Int(parts[0]) {
                 return .appSyncData(dashId: dashId, body: parts.dropFirst().joined(separator: "\0"))
             }
+            
+        case .sharing:
+            // Body: dashId\0active (1 or 0)
+            let parts = message.bodyParts
+            if parts.count >= 2, let dashId = Int(parts[0]) {
+                let active = parts[1] == "1"
+                return .sharingChanged(dashId: dashId, active: active)
+            }
+            
+        case .activateDashboard:
+            // Body: dashId (from another shared user)
+            if let dashId = Int(message.body) {
+                return .dashboardActivatedByOther(dashId: dashId)
+            }
+            
+        case .deactivateDashboard:
+            // Body: dashId (from another shared user)
+            if let dashId = Int(message.body) {
+                return .dashboardDeactivatedByOther(dashId: dashId)
+            }
+            
+        case .outdatedAppNotification:
+            return .outdatedAppNotification(message: message.body)
             
         case .blynkInternal:
             return .internalMessage(message.body)
