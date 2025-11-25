@@ -366,6 +366,8 @@ public actor Connector {
     private func startMessageHandler() {
         guard let socket = socket else { return }
         
+        print("[Connector] Starting message handler loop")
+        
         messageHandlerTask = Task { [weak self] in
             for await parsedMessage in socket.messages {
                 guard let self = self else { break }
@@ -373,6 +375,7 @@ public actor Connector {
             }
             
             // Loop terminated - socket disconnected
+            print("[Connector] Message handler loop terminated - socket stream ended")
             guard let self = self else { return }
             await self.handleSocketDisconnected()
         }
@@ -386,22 +389,26 @@ public actor Connector {
         socketConnected = false
         authenticated = false
         
-        print("[Connector] Socket disconnected - was connected: \(wasConnected), was authenticated: \(wasAuthenticated)")
+        print("[Connector] handleSocketDisconnected - was connected: \(wasConnected), was authenticated: \(wasAuthenticated)")
         
         // Emit disconnected event
+        print("[Connector] Emitting .disconnected event")
         eventsContinuation?.yield(.disconnected(nil))
         
         // Notify via callback
         if wasConnected || wasAuthenticated {
+            print("[Connector] Calling onConnectionStateChanged(false, false)")
             onConnectionStateChanged?(false, false)
         }
         
         // Cancel all pending responses
+        print("[Connector] Cancelling \(pendingResponses.count) pending responses")
         for (_, continuation) in pendingResponses {
             continuation.resume(throwing: PlynxError.connectionClosed)
         }
         pendingResponses.removeAll()
         
+        print("[Connector] Cancelling \(pendingDataResponses.count) pending data responses")
         for (_, continuation) in pendingDataResponses {
             continuation.resume(throwing: PlynxError.connectionClosed)
         }

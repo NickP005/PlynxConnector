@@ -236,12 +236,15 @@ actor PlynxSocket {
                 }
                 
                 if let error = error {
-                    print("PlynxSocket: Receive error - \(error)")
+                    print("[PlynxSocket] Receive error - \(error)")
+                    // Errore di ricezione - connessione persa
+                    await self.handleConnectionLost(error: error)
                     return
                 }
                 
                 if isComplete {
                     // Connection closed by server
+                    print("[PlynxSocket] Connection closed by server (isComplete=true)")
                     await self.handleConnectionClosed()
                     return
                 }
@@ -265,14 +268,34 @@ actor PlynxSocket {
     }
     
     private func handleConnectionClosed() {
+        print("[PlynxSocket] handleConnectionClosed called")
         connection?.cancel()
         connection = nil
+        
+        // Termina lo stream di messaggi per notificare il Connector
+        print("[PlynxSocket] Finishing messages stream")
+        messagesContinuation?.finish()
+        messagesContinuation = nil
         
         if shouldReconnect {
             Task {
                 await attemptReconnect()
             }
         }
+    }
+    
+    /// Gestisce la perdita di connessione (errore di rete)
+    private func handleConnectionLost(error: Error) {
+        print("[PlynxSocket] handleConnectionLost called - error: \(error.localizedDescription)")
+        connection?.cancel()
+        connection = nil
+        
+        // Termina lo stream di messaggi per notificare il Connector
+        print("[PlynxSocket] Finishing messages stream due to connection lost")
+        messagesContinuation?.finish()
+        messagesContinuation = nil
+        
+        // Non tentare riconnessione automatica dal socket - lascia che il Connector gestisca
     }
     
     // MARK: - Status
