@@ -74,6 +74,19 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Push mode (momentary) vs toggle
     public var pushMode: Bool?
     
+    // MARK: - StyledButton specific
+    
+    /// On button state (text, colors)
+    public var onButtonState: ButtonState?
+    
+    /// Off button state (text, colors)
+    public var offButtonState: ButtonState?
+    
+    // MARK: - Slider specific
+    
+    /// Send value only on release (false = real-time)
+    public var sendOnReleaseOn: Bool?
+    
     // MARK: - Display specific
     
     /// Value formatting string
@@ -167,10 +180,26 @@ public struct Widget: Codable, Sendable, Identifiable {
         case id, type, x, y, width, height, tabId, label, color
         case deviceId, pin, pinType, value, min, max, frequency
         case pwmMode, rangeMappingOn, onLabel, offLabel, pushMode
+        case onButtonState, offButtonState, sendOnReleaseOn
         case valueFormatting, textAlignment, suffix, maximumFractionDigits
         case dataStreams, labels, startAt, stopAt, days, timezone
         case url, urls, autoScrollOn, textInputOn, textLightOn
         case notifyWhenOffline, notifyBody, templates, tiles, reports, tabs
+    }
+}
+
+/// Button state for StyledButton widget.
+public struct ButtonState: Codable, Sendable {
+    public var text: String?
+    public var textColor: Int?
+    public var backgroundColor: Int?
+    public var iconName: String?
+    
+    public init(text: String? = nil, textColor: Int? = nil, backgroundColor: Int? = nil, iconName: String? = nil) {
+        self.text = text
+        self.textColor = textColor
+        self.backgroundColor = backgroundColor
+        self.iconName = iconName
     }
 }
 
