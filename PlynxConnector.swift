@@ -1,0 +1,440 @@
+//
+//  PlynxConnector.swift
+//  PlynxConnector
+//
+//  Main interface for connecting to Plynx server.
+//
+
+import Foundation
+
+/// Main class for connecting to and communicating with a Plynx server.
+///
+/// Example usage:
+/// ```swift
+/// let connector = PlynxConnector(host: "192.168.1.100")
+///
+/// // Listen for events
+/// Task {
+///     for await event in connector.events {
+///         switch event {
+///         case .virtualPinUpdate(let dashId, let deviceId, let pin, let values):
+///             print("V\(pin) = \(values)")
+///         default:
+///             break
+///         }
+///     }
+/// }
+///
+/// // Connect and login
+/// try await connector.connect(email: "user@example.com", password: "password")
+///
+/// // Activate dashboard
+/// _ = try await connector.send(.activateDashboard(dashId: 1))
+///
+/// // Write to virtual pin
+/// _ = try await connector.send(.writeVirtualPin(dashId: 1, deviceId: 0, pin: 1, value: "255"))
+/// ```
+public actor PlynxConnector {
+    
+    // MARK: - Properties
+    
+    private let host: String
+    private let port: UInt16
+    private var socket: PlynxSocket?
+    
+    private var messageId: UInt16 = 0
+    private var pendingResponses: [UInt16: CheckedContinuation<Event, Error>] = [:]
+    
+    /// Whether the user is authenticated with the server
+    private(set) public var authenticated: Bool = false
+    
+    /// Whether the socket is connected (may not be authenticated yet)
+    private(set) public var socketConnected: Bool = false
+    
+    private var pingTask: Task<Void, Never>?
+    private var messageHandlerTask: Task<Void, Never>?
+    
+    private let encoder = JSONEncoder()
+    private let decoder = JSONDecoder()
+    
+    // Stored credentials for reconnection
+    private var storedEmail: String?
+    private var storedPassword: String?
+    private var storedAppName: String?
+    private var storedShareToken: String?
+    
+    // Active dashboard tracking
+    private(set) public var activeDashboardId: Int?
+    
+    private var eventsContinuation: AsyncStream<Event>.Continuation?
+    
+    /// Stream of events from the server
+    public nonisolated let events: AsyncStream<Event>
+    
+    /// Default port for Plynx server (SSL)
+    public static let defaultPort: UInt16 = 9443
+    
+    /// Response timeout in seconds
+    public var responseTimeout: TimeInterval = 10.0
+    
+    /// Ping interval in seconds
+    public var pingInterval: TimeInterval = 10.0
+    
+    // MARK: - Callbacks (Alternative to events stream)
+    
+    /// Called when a virtual pin value is updated from hardware
+    public var onVirtualPinUpdate: ((Int, Int, Int, [String]) -> Void)?
+    
+    /// Called when a digital pin value is updated from hardware
+    public var onDigitalPinUpdate: ((Int, Int, Int, Int) -> Void)?
+    
+    /// Called when an analog pin value is updated from hardware
+    public var onAnalogPinUpdate: ((Int, Int, Int, Int) -> Void)?
+    
+    /// Called when a widget property is changed from hardware
+    public var onWidgetPropertyChanged: ((Int, Int, Int, WidgetProperty, String) -> Void)?
+    
+    /// Called when a hardware device connects
+    public var onHardwareConnected: ((Int, Int) -> Void)?
+    
+    /// Called when a hardware device disconnects
+    public var onHardwareDisconnected: ((Int, Int) -> Void)?
+    
+    /// Called when connection state changes
+    public var onConnectionStateChanged: ((Bool, Bool) -> Void)?
+    
+    /// Called on any hardware message (raw)
+    public var onHardwareMessage: ((Int, Int, String) -> Void)?
+    
+    // MARK: - Initialization
+    
+    /// Create a new PlynxConnector
+    /// - Parameters:
+    ///   - host: Server hostname or IP address
+    ///   - port: Server port (default: 9443)
+    public init(host: String, port: UInt16 = defaultPort) {
+        self.host = host
+        self.port = port
+        
+        var continuation: AsyncStream<Event>.Continuation!
+        self.events = AsyncStream { continuation = $0 }
+        self.eventsContinuation = continuation
+    }
+    
+    deinit {
+        eventsContinuation?.finish()
+    }
+    
+    // MARK: - Connection
+    
+    /// Connect to the server and login with email/password
+    /// - Parameters:
+    ///   - email: User email
+    ///   - password: User password
+    ///   - appName: Application name (default: "Plynx")
+    public func connect(email: String, password: String, appName: String = "Plynx") async throws {
+        // Store credentials for reconnection
+        storedEmail = email
+        storedPassword = password
+        storedAppName = appName
+        storedShareToken = nil
+        
+        // Create and connect socket
+        let sock = PlynxSocket(host: host, port: port)
+        self.socket = sock
+        
+        try await sock.connect()
+        socketConnected = true
+        
+        // Start message handler
+        startMessageHandler()
+        
+        // Emit connected event
+        eventsContinuation?.yield(.connected)
+        onConnectionStateChanged?(true, false)
+        
+        // Login
+        let response = try await send(.login(email: email, password: password, appName: appName))
+        
+        if case .response(_, let code) = response {
+            if code == .ok {
+                authenticated = true
+                eventsContinuation?.yield(.loginSuccess)
+                onConnectionStateChanged?(true, true)
+                
+                // Start ping timer
+                startPingTimer()
+            } else {
+                authenticated = false
+                eventsContinuation?.yield(.loginFailed(code))
+                throw PlynxError.authenticationFailed(code)
+            }
+        }
+    }
+    
+    /// Connect to the server with a share token
+    /// - Parameter token: Share token for shared dashboard access
+    public func connectWithShareToken(_ token: String) async throws {
+        // Store for reconnection
+        storedShareToken = token
+        storedEmail = nil
+        storedPassword = nil
+        storedAppName = nil
+        
+        // Create and connect socket
+        let sock = PlynxSocket(host: host, port: port)
+        self.socket = sock
+        
+        try await sock.connect()
+        
+        // Start message handler
+        startMessageHandler()
+        
+        // Emit connected event
+        eventsContinuation?.yield(.connected)
+        
+        // Share login
+        let response = try await send(.shareLogin(token: token))
+        
+        if case .response(_, let code) = response {
+            if code == .ok {
+                isAuthenticated = true
+                eventsContinuation?.yield(.loginSuccess)
+                startPingTimer()
+            } else {
+                isAuthenticated = false
+                eventsContinuation?.yield(.loginFailed(code))
+                throw PlynxError.authenticationFailed(code)
+            }
+        }
+    }
+    
+    /// Disconnect from the server
+    public func disconnect() async {
+        pingTask?.cancel()
+        pingTask = nil
+        messageHandlerTask?.cancel()
+        messageHandlerTask = nil
+        
+        await socket?.disconnect()
+        socket = nil
+        
+        let wasAuthenticated = authenticated
+        let wasConnected = socketConnected
+        
+        authenticated = false
+        socketConnected = false
+        activeDashboardId = nil
+        
+        // Cancel all pending responses
+        for (_, continuation) in pendingResponses {
+            continuation.resume(throwing: PlynxError.connectionClosed)
+        }
+        pendingResponses.removeAll()
+        
+        eventsContinuation?.yield(.disconnected(nil))
+        
+        if wasConnected || wasAuthenticated {
+            onConnectionStateChanged?(false, false)
+        }
+    }
+    
+    /// Whether currently connected and authenticated (convenience computed property)
+    public var isConnected: Bool {
+        get async {
+            guard let socket = socket else { return false }
+            return await socket.isConnected && authenticated
+        }
+    }
+    
+    // MARK: - Sending Actions
+    
+    /// Send an action to the server and wait for the response
+    /// - Parameter action: The action to send
+    /// - Returns: The response event
+    @discardableResult
+    public func send(_ action: Action) async throws -> Event {
+        guard let socket = socket else {
+            throw PlynxError.notConnected
+        }
+        
+        // Generate message ID
+        messageId = messageId &+ 1
+        let msgId = messageId
+        
+        // Convert action to message
+        let message: BlynkMessage
+        do {
+            message = try action.toMessage(messageId: msgId, encoder: encoder)
+        } catch {
+            throw PlynxError.encodingError(error)
+        }
+        
+        // Send the message
+        try await socket.send(message)
+        
+        // Wait for response with timeout
+        return try await withTimeout(seconds: responseTimeout) {
+            try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<Event, Error>) in
+                Task {
+                    await self.registerPendingResponse(msgId: msgId, continuation: continuation)
+                }
+            }
+        }
+    }
+    
+    private func registerPendingResponse(msgId: UInt16, continuation: CheckedContinuation<Event, Error>) {
+        pendingResponses[msgId] = continuation
+    }
+    
+    // MARK: - Message Handling
+    
+    private func startMessageHandler() {
+        guard let socket = socket else { return }
+        
+        messageHandlerTask = Task { [weak self] in
+            for await parsedMessage in socket.messages {
+                guard let self = self else { break }
+                await self.handleMessage(parsedMessage)
+            }
+        }
+    }
+    
+    private func handleMessage(_ parsedMessage: ParsedMessage) {
+        // Check if this is a response to a pending request
+        if case .response(let response) = parsedMessage {
+            if let continuation = pendingResponses.removeValue(forKey: response.messageId) {
+                let event = Event.response(messageId: response.messageId, code: response.code)
+                continuation.resume(returning: event)
+                return
+            }
+        }
+        
+        // Parse as event and emit
+        if let event = Event.from(message: parsedMessage, decoder: decoder) {
+            // Handle special cases
+            switch event {
+            case .response(let msgId, let code):
+                // Check if it's for a pending request
+                if let continuation = pendingResponses.removeValue(forKey: msgId) {
+                    continuation.resume(returning: event)
+                    return
+                }
+                
+            default:
+                break
+            }
+            
+            eventsContinuation?.yield(event)
+        }
+    }
+    
+    // MARK: - Ping Timer
+    
+    private func startPingTimer() {
+        pingTask?.cancel()
+        pingTask = Task { [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(nanoseconds: UInt64(self?.pingInterval ?? 10.0) * 1_000_000_000)
+                
+                guard !Task.isCancelled, let self = self else { break }
+                
+                do {
+                    _ = try await self.send(.ping)
+                } catch {
+                    // Ping failed, connection might be dead
+                    print("PlynxConnector: Ping failed - \(error)")
+                }
+            }
+        }
+    }
+    
+    // MARK: - Reconnection Handling
+    
+    /// Called when reconnection is needed
+    private func handleReconnection() async {
+        guard isAuthenticated else { return }
+        
+        eventsContinuation?.yield(.reconnecting(attempt: await socket?.currentReconnectAttempt ?? 0))
+        
+        // Re-authenticate after reconnection
+        if let email = storedEmail, let password = storedPassword, let appName = storedAppName {
+            do {
+                let response = try await send(.login(email: email, password: password, appName: appName))
+                if case .response(_, let code) = response, code == .ok {
+                    eventsContinuation?.yield(.reconnected)
+                    startPingTimer()
+                }
+            } catch {
+                print("PlynxConnector: Re-authentication failed - \(error)")
+            }
+        } else if let token = storedShareToken {
+            do {
+                let response = try await send(.shareLogin(token: token))
+                if case .response(_, let code) = response, code == .ok {
+                    eventsContinuation?.yield(.reconnected)
+                    startPingTimer()
+                }
+            } catch {
+                print("PlynxConnector: Re-authentication failed - \(error)")
+            }
+        }
+    }
+    
+    // MARK: - Convenience Methods
+    
+    /// Load and decode user profile
+    /// - Returns: The user profile
+    public func loadProfile() async throws -> Profile {
+        let response = try await send(.loadProfile(dashId: nil, published: false))
+        
+        // The server sends profile data as a separate message after OK response
+        // We need to wait for the next message which will be the actual data
+        // For now, return empty profile - full implementation would need message queuing
+        
+        return Profile()
+    }
+    
+    /// Write a value to a virtual pin
+    /// - Parameters:
+    ///   - dashId: Dashboard ID
+    ///   - deviceId: Device ID
+    ///   - pin: Pin number
+    ///   - value: Value to write
+    @discardableResult
+    public func writeVirtualPin(dashId: Int, deviceId: Int, pin: Int, value: String) async throws -> Event {
+        return try await send(.writeVirtualPin(dashId: dashId, deviceId: deviceId, pin: pin, value: value))
+    }
+    
+    /// Activate a dashboard
+    /// - Parameter dashId: Dashboard ID
+    @discardableResult
+    public func activateDashboard(_ dashId: Int) async throws -> Event {
+        return try await send(.activateDashboard(dashId: dashId))
+    }
+    
+    /// Deactivate all dashboards
+    @discardableResult
+    public func deactivateAllDashboards() async throws -> Event {
+        return try await send(.deactivateDashboard(dashId: nil))
+    }
+}
+
+// MARK: - Timeout Helper
+
+private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async throws -> T) async throws -> T {
+    try await withThrowingTaskGroup(of: T.self) { group in
+        group.addTask {
+            try await operation()
+        }
+        
+        group.addTask {
+            try await Task.sleep(nanoseconds: UInt64(seconds * 1_000_000_000))
+            throw PlynxError.timeout
+        }
+        
+        let result = try await group.next()!
+        group.cancelAll()
+        return result
+    }
+}
