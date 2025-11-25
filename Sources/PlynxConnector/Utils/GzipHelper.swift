@@ -2,17 +2,19 @@
 //  GzipHelper.swift
 //  PlynxConnector
 //
-//  Gzip decompression for profile and graph data.
+//  Zlib/Deflate decompression for profile and graph data.
+//  Note: The Blynk server uses Java's DeflaterOutputStream which produces
+//  zlib-wrapped deflate data (starts with 78 9C), not gzip (1F 8B).
 //
 
 import Foundation
 import Compression
 
-/// Helper for decompressing gzipped data from the server.
+/// Helper for decompressing compressed data from the server.
 public enum GzipHelper {
     
-    /// Decompress gzipped data
-    /// - Parameter data: Gzipped data
+    /// Decompress zlib/deflate data (as used by Blynk server)
+    /// - Parameter data: Compressed data (zlib format with 78 9C header)
     /// - Returns: Decompressed data
     /// - Throws: If decompression fails
     public static func decompress(_ data: Data) throws -> Data {
@@ -20,16 +22,76 @@ public enum GzipHelper {
             return data
         }
         
+        // Check for zlib header (78 9C for default compression, 78 DA for best, 78 01 for no compression)
+        let isZlib = data.count >= 2 && data[0] == 0x78 && (data[1] == 0x9C || data[1] == 0xDA || data[1] == 0x01 || data[1] == 0x5E)
+        
         // Check for gzip magic number
-        guard data.count >= 2,
-              data[0] == 0x1f,
-              data[1] == 0x8b else {
-            // Not gzipped, return as-is
+        let isGzip = data.count >= 2 && data[0] == 0x1f && data[1] == 0x8b
+        
+        if !isZlib && !isGzip {
+            // Not compressed, return as-is (might be plain JSON)
+            print("[GzipHelper] Data doesn't appear compressed (first bytes: \(data.prefix(4).map { String(format: "%02X", $0) }.joined(separator: " ")))")
             return data
         }
         
-        // Use Compression framework
-        let decompressedSize = data.count * 10 // Estimate
+        if isZlib {
+            return try decompressZlib(data)
+        } else {
+            return try decompressGzip(data)
+        }
+    }
+    
+    /// Decompress zlib-wrapped deflate data
+    private static func decompressZlib(_ data: Data) throws -> Data {
+        // Zlib format: 2-byte header + deflate data + 4-byte adler32 checksum
+        // We skip the 2-byte header and ignore the 4-byte trailer
+        guard data.count > 6 else {
+            throw PlynxError.decodingError(NSError(domain: "GzipHelper", code: -1,
+                                                   userInfo: [NSLocalizedDescriptionKey: "Zlib data too short"]))
+        }
+        
+        // Start with a reasonable buffer size, will grow if needed
+        var decompressedSize = max(data.count * 10, 1024)
+        var decompressedData = Data(count: decompressedSize)
+        
+        let result = decompressedData.withUnsafeMutableBytes { destBuffer -> Int in
+            let destPtr = destBuffer.bindMemory(to: UInt8.self).baseAddress!
+            
+            return data.withUnsafeBytes { sourceBuffer -> Int in
+                let sourcePtr = sourceBuffer.bindMemory(to: UInt8.self).baseAddress!
+                
+                // Skip 2-byte zlib header, exclude 4-byte adler32 trailer
+                let compressedStart = 2
+                let compressedLength = data.count - 2 - 4
+                
+                guard compressedLength > 0 else { return 0 }
+                
+                let decodedSize = compression_decode_buffer(
+                    destPtr,
+                    decompressedSize,
+                    sourcePtr.advanced(by: compressedStart),
+                    compressedLength,
+                    nil,
+                    COMPRESSION_ZLIB
+                )
+                
+                return decodedSize
+            }
+        }
+        
+        guard result > 0 else {
+            throw PlynxError.decodingError(NSError(domain: "GzipHelper", code: -1,
+                                                   userInfo: [NSLocalizedDescriptionKey: "Failed to decompress zlib data"]))
+        }
+        
+        decompressedData.count = result
+        print("[GzipHelper] Decompressed zlib: \(data.count) -> \(result) bytes")
+        return decompressedData
+    }
+    
+    /// Decompress gzip data
+    private static func decompressGzip(_ data: Data) throws -> Data {
+        let decompressedSize = data.count * 10
         var decompressedData = Data(count: decompressedSize)
         
         let result = decompressedData.withUnsafeMutableBytes { destBuffer -> Int in
@@ -50,6 +112,7 @@ public enum GzipHelper {
                     nil,
                     COMPRESSION_ZLIB
                 )
+                
                 
                 return decodedSize
             }
@@ -104,7 +167,7 @@ public enum GzipHelper {
     
     /// Decompress and decode JSON
     /// - Parameters:
-    ///   - data: Gzipped JSON data
+    ///   - data: Compressed JSON data (zlib or gzip)
     ///   - type: Type to decode
     ///   - decoder: JSON decoder
     /// - Returns: Decoded object
