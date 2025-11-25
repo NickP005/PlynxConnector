@@ -160,26 +160,27 @@ public final class MessageParser: @unchecked Sendable {
         buffer.append(data)
     }
     
-    /// Try to parse a complete message from the buffer
-    /// Returns nil if not enough data is available
-    public func parseNext() -> ParsedMessage? {
-        lock.lock()
-        defer { lock.unlock() }
-        
+    /// Try to parse a complete message from the buffer (internal, assumes lock is held)
+    private func parseNextInternal() -> ParsedMessage? {
         // Need at least header size (7 bytes for mobile protocol)
         guard buffer.count >= BlynkMessage.headerSize else {
             return nil
         }
         
-        // Parse header safely
-        let command = buffer[0]
-        let messageId = (UInt16(buffer[1]) << 8) | UInt16(buffer[2])
+        // Copy header bytes to local variables for safety
+        let headerBytes = Array(buffer.prefix(BlynkMessage.headerSize))
+        guard headerBytes.count >= 7 else {
+            return nil
+        }
+        
+        let command = headerBytes[0]
+        let messageId = (UInt16(headerBytes[1]) << 8) | UInt16(headerBytes[2])
         
         // Length/Status is 4 bytes in mobile protocol (big-endian)
-        let lengthOrStatus = (UInt32(buffer[3]) << 24) |
-                            (UInt32(buffer[4]) << 16) |
-                            (UInt32(buffer[5]) << 8) |
-                            UInt32(buffer[6])
+        let lengthOrStatus = (UInt32(headerBytes[3]) << 24) |
+                            (UInt32(headerBytes[4]) << 16) |
+                            (UInt32(headerBytes[5]) << 8) |
+                            UInt32(headerBytes[6])
         
         // Debug logging
         print("[MessageParser] Parsing: cmd=\(command), msgId=\(messageId), lengthOrStatus=\(lengthOrStatus), bufferSize=\(buffer.count)")
@@ -200,7 +201,9 @@ public final class MessageParser: @unchecked Sendable {
         guard bodyLength >= 0 && bodyLength < 10_000_000 else {
             print("[MessageParser] ⚠️ Invalid body length: \(bodyLength), skipping message")
             // Skip this malformed message header
-            buffer.removeFirst(BlynkMessage.headerSize)
+            if buffer.count >= BlynkMessage.headerSize {
+                buffer.removeFirst(BlynkMessage.headerSize)
+            }
             return nil
         }
         
@@ -211,8 +214,10 @@ public final class MessageParser: @unchecked Sendable {
             return nil
         }
         
-        // Extract body
-        let bodyData = buffer.subdata(in: BlynkMessage.headerSize..<totalLength)
+        // Extract body safely
+        let bodyStartIndex = BlynkMessage.headerSize
+        let bodyEndIndex = totalLength
+        let bodyData = Data(buffer[bodyStartIndex..<bodyEndIndex])
         let body = String(data: bodyData, encoding: .utf8) ?? ""
         
         // Remove parsed message from buffer
@@ -220,7 +225,6 @@ public final class MessageParser: @unchecked Sendable {
         
         guard let cmd = CommandCode(rawValue: command) else {
             print("[MessageParser] Unknown command: \(command)")
-            // Unknown command, skip
             return nil
         }
         
@@ -229,10 +233,21 @@ public final class MessageParser: @unchecked Sendable {
         return .command(message)
     }
     
-    /// Parse all complete messages from buffer
+    /// Try to parse a complete message from the buffer
+    /// Returns nil if not enough data is available
+    public func parseNext() -> ParsedMessage? {
+        lock.lock()
+        defer { lock.unlock() }
+        return parseNextInternal()
+    }
+    
+    /// Parse all complete messages from buffer (thread-safe)
     public func parseAll() -> [ParsedMessage] {
+        lock.lock()
+        defer { lock.unlock() }
+        
         var messages: [ParsedMessage] = []
-        while let message = parseNext() {
+        while let message = parseNextInternal() {
             messages.append(message)
         }
         return messages

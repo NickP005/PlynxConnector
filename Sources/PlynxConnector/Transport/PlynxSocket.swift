@@ -253,10 +253,12 @@ actor PlynxSocket {
     }
     
     private func handleReceivedData(_ data: Data) {
+        print("[PlynxSocket] Received \(data.count) bytes: \(data.prefix(20).map { String(format: "%02X", $0) }.joined(separator: " "))\(data.count > 20 ? "..." : "")")
         parser.append(data)
         
         // Parse all complete messages
         let messages = parser.parseAll()
+        print("[PlynxSocket] Parsed \(messages.count) messages")
         for message in messages {
             messagesContinuation?.yield(message)
         }
