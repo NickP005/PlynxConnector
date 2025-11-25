@@ -171,7 +171,7 @@ public final class MessageParser: @unchecked Sendable {
             return nil
         }
         
-        // Parse header
+        // Parse header safely
         let command = buffer[0]
         let messageId = (UInt16(buffer[1]) << 8) | UInt16(buffer[2])
         
@@ -181,19 +181,33 @@ public final class MessageParser: @unchecked Sendable {
                             (UInt32(buffer[5]) << 8) |
                             UInt32(buffer[6])
         
+        // Debug logging
+        print("[MessageParser] Parsing: cmd=\(command), msgId=\(messageId), lengthOrStatus=\(lengthOrStatus), bufferSize=\(buffer.count)")
+        
         // Handle response (command == 0)
         if command == CommandCode.response.rawValue {
             // For responses, lengthOrStatus is the response code, no body
             buffer.removeFirst(BlynkMessage.headerSize)
             let code = ResponseCode(rawValue: Int(lengthOrStatus))
+            print("[MessageParser] Parsed response: msgId=\(messageId), code=\(code)")
             return .response(BlynkResponse(messageId: messageId, code: code))
         }
         
         // For other commands, lengthOrStatus is the body length
         let bodyLength = Int(lengthOrStatus)
+        
+        // Sanity check: body length should be reasonable (max 10MB)
+        guard bodyLength >= 0 && bodyLength < 10_000_000 else {
+            print("[MessageParser] ⚠️ Invalid body length: \(bodyLength), skipping message")
+            // Skip this malformed message header
+            buffer.removeFirst(BlynkMessage.headerSize)
+            return nil
+        }
+        
         let totalLength = BlynkMessage.headerSize + bodyLength
         
         guard buffer.count >= totalLength else {
+            print("[MessageParser] Waiting for more data: need \(totalLength), have \(buffer.count)")
             return nil
         }
         
@@ -205,10 +219,12 @@ public final class MessageParser: @unchecked Sendable {
         buffer.removeFirst(totalLength)
         
         guard let cmd = CommandCode(rawValue: command) else {
+            print("[MessageParser] Unknown command: \(command)")
             // Unknown command, skip
             return nil
         }
         
+        print("[MessageParser] Parsed command: \(cmd), bodyLength=\(bodyLength)")
         let message = BlynkMessage(command: cmd, messageId: messageId, body: body)
         return .command(message)
     }
