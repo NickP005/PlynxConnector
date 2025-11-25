@@ -371,7 +371,41 @@ public actor Connector {
                 guard let self = self else { break }
                 await self.handleMessage(parsedMessage)
             }
+            
+            // Loop terminated - socket disconnected
+            guard let self = self else { return }
+            await self.handleSocketDisconnected()
         }
+    }
+    
+    /// Called when the socket disconnects unexpectedly
+    private func handleSocketDisconnected() {
+        let wasAuthenticated = authenticated
+        let wasConnected = socketConnected
+        
+        socketConnected = false
+        authenticated = false
+        
+        print("[Connector] Socket disconnected - was connected: \(wasConnected), was authenticated: \(wasAuthenticated)")
+        
+        // Emit disconnected event
+        eventsContinuation?.yield(.disconnected(nil))
+        
+        // Notify via callback
+        if wasConnected || wasAuthenticated {
+            onConnectionStateChanged?(false, false)
+        }
+        
+        // Cancel all pending responses
+        for (_, continuation) in pendingResponses {
+            continuation.resume(throwing: PlynxError.connectionClosed)
+        }
+        pendingResponses.removeAll()
+        
+        for (_, continuation) in pendingDataResponses {
+            continuation.resume(throwing: PlynxError.connectionClosed)
+        }
+        pendingDataResponses.removeAll()
     }
     
     private func handleMessage(_ parsedMessage: ParsedMessage) {
