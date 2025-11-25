@@ -56,12 +56,16 @@ actor PlynxSocket {
     }
     
     private func establishConnection() async throws {
+        print("[PlynxSocket] Establishing connection to \(host):\(port)...")
+        
         // Create TLS parameters that accept self-signed certificates
         let tlsOptions = NWProtocolTLS.Options()
         
+        print("[PlynxSocket] Configuring TLS (accept all certificates)...")
         sec_protocol_options_set_verify_block(tlsOptions.securityProtocolOptions, { (sec_protocol_metadata, sec_trust, sec_protocol_verify_complete) in
             // Accept all certificates (for self-signed server certs)
             // In production, you might want to implement proper certificate pinning
+            print("[PlynxSocket] TLS verify block called - accepting certificate")
             sec_protocol_verify_complete(true)
         }, DispatchQueue.global())
         
@@ -74,10 +78,13 @@ actor PlynxSocket {
         let parameters = NWParameters(tls: tlsOptions, tcp: tcpOptions)
         
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: NWEndpoint.Port(rawValue: port)!)
+        print("[PlynxSocket] Created endpoint: \(endpoint)")
+        
         let conn = NWConnection(to: endpoint, using: parameters)
         
         self.connection = conn
         
+        print("[PlynxSocket] Starting connection...")
         return try await withCheckedThrowingContinuation { continuation in
             self.connectionContinuation = continuation
             
@@ -88,12 +95,22 @@ actor PlynxSocket {
             }
             
             conn.start(queue: .global())
+            print("[PlynxSocket] Connection started, waiting for state changes...")
         }
     }
     
     private func handleStateChange(_ state: NWConnection.State) {
+        print("[PlynxSocket] State changed to: \(state)")
+        
         switch state {
+        case .setup:
+            print("[PlynxSocket] Connection setup in progress...")
+            
+        case .preparing:
+            print("[PlynxSocket] Connection preparing (DNS lookup, TCP handshake, TLS handshake)...")
+            
         case .ready:
+            print("[PlynxSocket] ✅ Connection READY!")
             isConnecting = false
             reconnectAttempt = 0
             
@@ -105,6 +122,8 @@ actor PlynxSocket {
             connectionContinuation = nil
             
         case .failed(let error):
+            print("[PlynxSocket] ❌ Connection FAILED: \(error)")
+            print("[PlynxSocket] Error details: \(error.localizedDescription)")
             isConnecting = false
             connection = nil
             
@@ -118,14 +137,26 @@ actor PlynxSocket {
             }
             
         case .cancelled:
+            print("[PlynxSocket] Connection CANCELLED")
             isConnecting = false
             connection = nil
             connectionContinuation?.resume(throwing: PlynxError.cancelled)
             connectionContinuation = nil
             
         case .waiting(let error):
-            // Network temporarily unavailable
-            print("PlynxSocket: Waiting - \(error)")
+            // Network temporarily unavailable - fail the connection after a short wait
+            print("[PlynxSocket] ⏳ Connection WAITING: \(error)")
+            print("[PlynxSocket] Waiting error details: \(error.localizedDescription)")
+            
+            // If we've been waiting too long, fail the connection
+            Task {
+                try? await Task.sleep(nanoseconds: 5_000_000_000) // 5 seconds max waiting
+                if case .waiting = self.connection?.state {
+                    self.connection?.cancel()
+                    self.connectionContinuation?.resume(throwing: PlynxError.connectionFailed(underlying: error))
+                    self.connectionContinuation = nil
+                }
+            }
             
         default:
             break

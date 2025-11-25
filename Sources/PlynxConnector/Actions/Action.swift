@@ -315,12 +315,16 @@ extension Action {
         switch self {
         // Authentication
         case .register(let email, let password, let appName):
+            // Password must be SHA256 hashed with email as salt
+            let passwordHash = SHA256Helper.makeHash(password: password, email: email)
             return BlynkMessage(command: .register, messageId: messageId,
-                              bodyParts: [email, password, appName])
+                              bodyParts: [email, passwordHash, appName])
             
         case .login(let email, let password, let appName):
+            // Password must be SHA256 hashed with email as salt
+            let passwordHash = SHA256Helper.makeHash(password: password, email: email)
             return BlynkMessage(command: .login, messageId: messageId,
-                              bodyParts: [email, password, "iOS", "1.0.0", appName])
+                              bodyParts: [email, passwordHash, "iOS", "1.0.0", appName])
             
         case .shareLogin(let token):
             return BlynkMessage(command: .shareLogin, messageId: messageId, body: token)

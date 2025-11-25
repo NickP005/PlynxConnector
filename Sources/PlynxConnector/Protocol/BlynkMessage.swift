@@ -9,11 +9,14 @@ import Foundation
 
 /// Represents a message in the Plynx binary protocol.
 ///
-/// Message format:
+/// Message format for MOBILE apps (7-byte header):
 /// - Command: 1 byte (unsigned)
 /// - Message ID: 2 bytes (big-endian, unsigned)
-/// - Length: 2 bytes (big-endian, unsigned) - body length or response code
+/// - Length: 4 bytes (big-endian, unsigned) - body length
 /// - Body: Variable length UTF-8 string
+///
+/// Note: Hardware devices use a 5-byte header with 2-byte length,
+/// but mobile apps use 7-byte header with 4-byte length.
 public struct BlynkMessage: Sendable {
     /// The command code
     public let command: CommandCode
@@ -31,8 +34,10 @@ public struct BlynkMessage: Sendable {
         return nil // Will be set during parsing
     }
     
-    /// Header size in bytes (command + messageId + length)
-    public static let headerSize = 5
+    /// Header size in bytes for mobile protocol (command + messageId + length)
+    /// Mobile uses 4-byte length, hardware uses 2-byte length
+    public static let headerSize = 7  // 1 + 2 + 4 for mobile
+    public static let hardwareHeaderSize = 5  // 1 + 2 + 2 for hardware
     
     /// Field separator used in message body
     public static let separator: Character = "\0"
@@ -52,7 +57,7 @@ public struct BlynkMessage: Sendable {
         self.body = bodyParts.joined(separator: Self.separatorString)
     }
     
-    /// Serialize the message to bytes for transmission
+    /// Serialize the message to bytes for transmission (mobile protocol - 7 byte header)
     public func serialize() -> Data {
         var data = Data()
         
@@ -66,7 +71,34 @@ public struct BlynkMessage: Sendable {
         // Body as UTF-8
         let bodyData = body.data(using: .utf8) ?? Data()
         
-        // Length (2 bytes, big-endian)
+        // Length (4 bytes, big-endian) - Mobile protocol uses 4-byte length
+        let length = UInt32(bodyData.count)
+        data.append(UInt8((length >> 24) & 0xFF))
+        data.append(UInt8((length >> 16) & 0xFF))
+        data.append(UInt8((length >> 8) & 0xFF))
+        data.append(UInt8(length & 0xFF))
+        
+        // Body
+        data.append(bodyData)
+        
+        return data
+    }
+    
+    /// Serialize using hardware protocol (5 byte header with 2-byte length)
+    public func serializeForHardware() -> Data {
+        var data = Data()
+        
+        // Command (1 byte)
+        data.append(command.rawValue)
+        
+        // Message ID (2 bytes, big-endian)
+        data.append(UInt8((messageId >> 8) & 0xFF))
+        data.append(UInt8(messageId & 0xFF))
+        
+        // Body as UTF-8
+        let bodyData = body.data(using: .utf8) ?? Data()
+        
+        // Length (2 bytes, big-endian) - Hardware protocol uses 2-byte length
         let length = UInt16(bodyData.count)
         data.append(UInt8((length >> 8) & 0xFF))
         data.append(UInt8(length & 0xFF))
@@ -114,7 +146,7 @@ public enum ParsedMessage: Sendable {
     }
 }
 
-/// Message parser for the binary protocol
+/// Message parser for the mobile binary protocol (7-byte header)
 public final class MessageParser: @unchecked Sendable {
     private var buffer = Data()
     private let lock = NSLock()
@@ -134,7 +166,7 @@ public final class MessageParser: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         
-        // Need at least header size
+        // Need at least header size (7 bytes for mobile protocol)
         guard buffer.count >= BlynkMessage.headerSize else {
             return nil
         }
@@ -142,7 +174,12 @@ public final class MessageParser: @unchecked Sendable {
         // Parse header
         let command = buffer[0]
         let messageId = (UInt16(buffer[1]) << 8) | UInt16(buffer[2])
-        let lengthOrStatus = (UInt16(buffer[3]) << 8) | UInt16(buffer[4])
+        
+        // Length/Status is 4 bytes in mobile protocol (big-endian)
+        let lengthOrStatus = (UInt32(buffer[3]) << 24) |
+                            (UInt32(buffer[4]) << 16) |
+                            (UInt32(buffer[5]) << 8) |
+                            UInt32(buffer[6])
         
         // Handle response (command == 0)
         if command == CommandCode.response.rawValue {
