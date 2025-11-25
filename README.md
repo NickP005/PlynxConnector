@@ -2,17 +2,83 @@
 
 Swift iOS connector library for the Plynx (Blynk) server. Provides a complete interface to control IoT devices through the Plynx server using the binary TCP/SSL protocol.
 
+## Legal Notice
+
+This library is an **independent clean-room implementation** of the Blynk communication protocol. 
+
+### What This Means:
+- ✅ **No code copied** from Blynk server or mobile apps
+- ✅ **Protocol reverse-engineered** for interoperability (legal under EU Directive 2009/24/EC and US fair use)
+- ✅ **APIs are not copyrightable** (see *Oracle v. Google*, 593 U.S. ___ (2021))
+- ✅ **Board names** (ESP8266, Arduino, etc.) are trademarks of their respective hardware manufacturers
+- ✅ **Widget names** (Button, Slider, etc.) are functional descriptors, not creative works
+
+### Trademarks:
+- **Blynk** is a trademark of Blynk Inc.
+- Hardware names are trademarks of their respective owners (Espressif, Arduino, Raspberry Pi Foundation, etc.)
+
+### Disclaimer:
+This project is **not affiliated with, endorsed by, or connected to Blynk Inc.**
+This software is provided "as is" without warranty of any kind.
+
+### License:
+**© 2025 NickP005. All Rights Reserved.**  
+See [LICENSE](LICENSE) for terms. Contact for licensing inquiries.
+
 ## Requirements
 
-- iOS 15.0+ / macOS 12.0+
+- iOS 15.0+ / macOS 12.0+ / tvOS 15.0+ / watchOS 8.0+
 - Swift 5.5+
 - Xcode 13+
 
 ## Installation
 
-1. Copy the entire `PlynxConnector/` folder into your Xcode project
-2. Make sure all files are added to your target
-3. The library uses only Foundation and Network frameworks (no external dependencies)
+### Swift Package Manager (Recommended)
+
+Add PlynxConnector to your project via Xcode:
+
+1. File → Add Package Dependencies...
+2. Enter: `https://github.com/NickP005/PlynxConnector.git`
+3. Select version or branch
+4. Click "Add Package"
+
+Or add to your `Package.swift`:
+
+```swift
+dependencies: [
+    .package(url: "https://github.com/NickP005/PlynxConnector.git", from: "1.0.0")
+]
+```
+
+Then add to your target:
+
+```swift
+.target(
+    name: "YourApp",
+    dependencies: ["PlynxConnector"]
+)
+```
+
+### CocoaPods
+
+Add to your `Podfile`:
+
+```ruby
+pod 'PlynxConnector', '~> 1.0'
+```
+
+Then run:
+
+```bash
+pod install
+```
+
+### Manual Installation
+
+1. Download or clone this repository
+2. Drag the `Sources/PlynxConnector` folder into your Xcode project
+3. Make sure "Copy items if needed" is checked
+4. The library uses only Foundation and Network frameworks (no external dependencies)
 
 ## Quick Start
 
@@ -418,4 +484,10 @@ PlynxConnector/
 
 ## License
 
-This connector is designed to work with the Plynx Server (GPL licensed).
+**© 2025 NickP005. All Rights Reserved.**
+
+This software is proprietary. See [LICENSE](LICENSE) for terms.
+
+For licensing inquiries or commercial use, please contact the author.
+
+This connector is designed to work with the Plynx/Blynk Legacy Server.

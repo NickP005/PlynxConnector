@@ -1,0 +1,43 @@
+PROPRIETARY LICENSE
+
+Copyright (c) 2025 NickP005. All Rights Reserved.
+
+This software and associated documentation files (the "Software") are the
+exclusive property of the copyright holder. No part of this Software may be
+reproduced, distributed, modified, reverse engineered, decompiled, or used
+in any manner without the express prior written permission of the copyright
+holder.
+
+Unauthorized copying, modification, distribution, or use of this Software,
+via any medium, is strictly prohibited.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+For licensing inquiries, contact the copyright holder.
+
+---
+
+INTEROPERABILITY NOTICE:
+
+This software implements the Blynk communication protocol for interoperability
+purposes only. The protocol implementation is an independent clean-room
+implementation based on:
+- Publicly available documentation
+- Network protocol analysis for compatibility purposes
+- Functional interface descriptions
+
+No source code from Blynk Inc. products was used, referenced, or copied.
+Protocol specifications and APIs are not subject to copyright protection
+(see Oracle America, Inc. v. Google LLC, 593 U.S. ___ (2021)).
+
+Hardware board names (e.g., "ESP8266", "Arduino") are trademarks of their
+respective manufacturers. Widget type names are functional descriptors.
+
+"Blynk" is a trademark of Blynk Inc. This project is not affiliated with,
+sponsored by, or endorsed by Blynk Inc.

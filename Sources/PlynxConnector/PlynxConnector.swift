@@ -198,11 +198,13 @@ public actor PlynxConnector {
         
         if case .response(_, let code) = response {
             if code == .ok {
-                isAuthenticated = true
+                authenticated = true
+                socketConnected = true
+                onConnectionStateChanged?(true, true)
                 eventsContinuation?.yield(.loginSuccess)
                 startPingTimer()
             } else {
-                isAuthenticated = false
+                authenticated = false
                 eventsContinuation?.yield(.loginFailed(code))
                 throw PlynxError.authenticationFailed(code)
             }
