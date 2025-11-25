@@ -242,10 +242,35 @@ extension Event {
             return parseWidgetProperty(message)
             
         case .appSync:
-            // Body: dashId\0body
+            // Body format: "dashId-deviceId\0command\0pin\0value" or "dashId\0command\0pin\0value"
             let parts = message.bodyParts
-            if parts.count >= 2, let dashId = Int(parts[0]) {
-                return .appSyncData(dashId: dashId, body: parts.dropFirst().joined(separator: "\0"))
+            guard parts.count >= 2 else { return nil }
+            
+            // First part can be "dashId" or "dashId-deviceId"
+            let dashIdPart = parts[0]
+            let dashId: Int
+            let deviceId: Int?
+            
+            if dashIdPart.contains("-") {
+                let dashParts = dashIdPart.split(separator: "-")
+                guard dashParts.count >= 1, let id = Int(dashParts[0]) else { return nil }
+                dashId = id
+                deviceId = dashParts.count >= 2 ? Int(dashParts[1]) : nil
+            } else {
+                guard let id = Int(dashIdPart) else { return nil }
+                dashId = id
+                deviceId = nil
+            }
+            
+            // Reconstruct body without dashId part for easier parsing downstream
+            // Body: "vw\0pin\0value" or similar
+            let body = parts.dropFirst().joined(separator: "\0")
+            
+            // If we have deviceId, prepend it to body
+            if let deviceId = deviceId {
+                return .appSyncData(dashId: dashId, body: "\(deviceId)\0" + body)
+            } else {
+                return .appSyncData(dashId: dashId, body: body)
             }
             
         case .sharing:
