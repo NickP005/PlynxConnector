@@ -139,6 +139,11 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Notification body
     public var notifyBody: String?
     
+    // MARK: - Tabs specific
+    
+    /// Tabs for Tabs widget
+    public var tabs: [TabItem]?
+    
     // MARK: - DeviceTiles specific
     
     /// Tile templates
@@ -165,7 +170,18 @@ public struct Widget: Codable, Sendable, Identifiable {
         case valueFormatting, textAlignment, suffix, maximumFractionDigits
         case dataStreams, labels, startAt, stopAt, days, timezone
         case url, urls, autoScrollOn, textInputOn, textLightOn
-        case notifyWhenOffline, notifyBody, templates, tiles, reports
+        case notifyWhenOffline, notifyBody, templates, tiles, reports, tabs
+    }
+}
+
+/// Tab item for Tabs widget.
+public struct TabItem: Codable, Sendable, Identifiable {
+    public var id: Int
+    public var label: String?
+    
+    public init(id: Int, label: String? = nil) {
+        self.id = id
+        self.label = label
     }
 }
 
