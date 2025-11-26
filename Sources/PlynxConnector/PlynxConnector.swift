@@ -174,13 +174,16 @@ public actor Connector {
     }
     
     /// Connect to the server with a share token
-    /// - Parameter token: Share token for shared dashboard access
+    /// - Parameter token: Share token for shared dashboard access (format: "email\0shareToken")
     public func connectWithShareToken(_ token: String) async throws {
         // Store for reconnection
         storedShareToken = token
         storedEmail = nil
         storedPassword = nil
         storedAppName = nil
+        
+        print("[Connector] connectWithShareToken: token='\(token)'")
+        print("[Connector] connectWithShareToken: token bytes = \(Array(token.utf8))")
         
         // Create and connect socket
         let sock = PlynxSocket(host: host, port: port)
@@ -195,7 +198,9 @@ public actor Connector {
         eventsContinuation?.yield(.connected)
         
         // Share login
+        print("[Connector] Sending shareLogin action...")
         let response = try await send(.shareLogin(token: token))
+        print("[Connector] shareLogin response: \(response)")
         
         if case .response(_, let code) = response {
             if code == .ok {

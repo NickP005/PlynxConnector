@@ -181,7 +181,7 @@ public enum Event: Sendable {
     
     // MARK: - Notification Events
     
-    /// Email sent successfully
+    /// Email sent successfully0
     case emailSent
     
     /// Push token registered
