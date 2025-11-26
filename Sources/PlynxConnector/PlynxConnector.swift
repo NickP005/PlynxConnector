@@ -547,13 +547,24 @@ public actor Connector {
             }
         }
         
-        // Check if this is a command that acts as a data response (e.g., loadProfileGzipped)
+        // Check if this is a command that acts as a data response (e.g., loadProfileGzipped, getShareToken)
         if case .command(let message) = parsedMessage {
             // Some commands are actually responses with data (same msgId as request)
             if let continuation = pendingDataResponses.removeValue(forKey: message.messageId) {
                 print("[Connector] Command \(message.command) is a data response for msgId \(message.messageId)")
                 continuation.resume(returning: message)
                 return
+            }
+            
+            // getShareToken and refreshShareToken respond with the token in the body
+            if message.command == .getShareToken || message.command == .refreshShareToken {
+                if let continuation = pendingResponses.removeValue(forKey: message.messageId) {
+                    let token = message.body
+                    print("[Connector] Share token received: \(token)")
+                    let event = Event.shareToken(token)
+                    continuation.resume(returning: event)
+                    return
+                }
             }
         }
         
