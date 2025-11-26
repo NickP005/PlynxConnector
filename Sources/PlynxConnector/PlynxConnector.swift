@@ -602,6 +602,16 @@ public actor Connector {
                     return
                 }
             }
+            
+            // createDevice responds with the device JSON - treat as success response
+            if message.command == .createDevice {
+                if let continuation = pendingResponses.removeValue(forKey: message.messageId) {
+                    print("[Connector] createDevice response received, treating as OK")
+                    let event = Event.response(messageId: message.messageId, code: .ok)
+                    continuation.resume(returning: event)
+                    return
+                }
+            }
         }
         
         // Parse as event and emit
