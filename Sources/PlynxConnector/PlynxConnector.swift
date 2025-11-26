@@ -253,6 +253,37 @@ public actor Connector {
         }
     }
     
+    /// Request password reset email
+    /// - Parameters:
+    ///   - email: User email
+    ///   - appName: Application name (default: "Plynx")
+    /// - Note: This connects to the server, sends the reset request, and disconnects.
+    public func requestPasswordReset(email: String, appName: String = "Plynx") async throws {
+        // Create and connect socket
+        let sock = PlynxSocket(host: host, port: port)
+        self.socket = sock
+        
+        try await sock.connect()
+        socketConnected = true
+        
+        // Start message handler
+        startMessageHandler()
+        
+        // Send reset password command
+        let response = try await send(.resetPasswordStart(email: email, appName: appName))
+        
+        // Disconnect regardless of result
+        await disconnect()
+        
+        if case .response(_, let code) = response {
+            if code != .ok {
+                // Non lanciamo errore per motivi di sicurezza
+                // (non vogliamo rivelare se l'email esiste o meno)
+                print("[Connector] Password reset response: \(code)")
+            }
+        }
+    }
+    
     /// Disconnect from the server
     public func disconnect() async {
         pingTask?.cancel()
