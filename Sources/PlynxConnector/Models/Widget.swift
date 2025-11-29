@@ -87,6 +87,23 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Send value only on release (false = real-time)
     public var sendOnReleaseOn: Bool?
     
+    // MARK: - Step widget specific
+    
+    /// Step increment value
+    public var step: Float?
+    
+    /// Arrows visible
+    public var isArrowsOn: Bool?
+    
+    /// Loop when reaching min/max
+    public var isLoopOn: Bool?
+    
+    /// Send step delta instead of absolute value
+    public var isSendStep: Bool?
+    
+    /// Show current value
+    public var showValueOn: Bool?
+    
     // MARK: - Joystick specific
     
     /// Split mode - sends X/Y to separate pins
@@ -189,6 +206,7 @@ public struct Widget: Codable, Sendable, Identifiable {
         case deviceId, pin, pinType, value, min, max, frequency
         case pwmMode, rangeMappingOn, onLabel, offLabel, pushMode
         case onButtonState, offButtonState, sendOnReleaseOn
+        case step, isArrowsOn, isLoopOn, isSendStep, showValueOn
         case split, autoReturnOn
         case valueFormatting, textAlignment, suffix, maximumFractionDigits
         case dataStreams, labels, startAt, stopAt, days, timezone
