@@ -112,6 +112,11 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Auto return to center when released
     public var autoReturnOn: Bool?
     
+    // MARK: - RGB (ZeRGBa) specific
+    
+    /// Split mode for RGB - sends R/G/B to separate pins
+    public var splitMode: Bool?
+    
     // MARK: - Display specific
     
     /// Value formatting string
@@ -207,9 +212,10 @@ public struct Widget: Codable, Sendable, Identifiable {
         case pwmMode, rangeMappingOn, onLabel, offLabel, pushMode
         case onButtonState, offButtonState, sendOnReleaseOn
         case step, isArrowsOn, isLoopOn, isSendStep, showValueOn
-        case split, autoReturnOn
+        case split, autoReturnOn, splitMode
         case valueFormatting, textAlignment, suffix, maximumFractionDigits
-        case dataStreams, labels, startAt, stopAt, days, timezone
+        case dataStreams = "pins" // Server uses "pins" for dataStreams in MultiPinWidget
+        case labels, startAt, stopAt, days, timezone
         case url, urls, autoScrollOn, textInputOn, textLightOn
         case notifyWhenOffline, notifyBody, templates, tiles, reports, tabs
     }
@@ -241,21 +247,26 @@ public struct TabItem: Codable, Sendable, Identifiable {
     }
 }
 
-/// Data stream for graph widgets.
+/// Data stream for MultiPinWidget (RGB, Joystick) and graph widgets.
 public struct DataStream: Codable, Sendable {
     public var id: Int?
     public var pin: Int?
     public var pinType: PinType?
+    public var pwmMode: Bool?
+    public var rangeMappingOn: Bool?
+    public var value: String?
+    public var min: Double?
+    public var max: Double?
     public var label: String?
     public var color: Int?
     public var suffix: String?
-    public var min: Double?
-    public var max: Double?
     public var isHidden: Bool?
     
-    public init(pin: Int, pinType: PinType = .virtual) {
+    public init(pin: Int, pinType: PinType = .virtual, min: Double = 0, max: Double = 255) {
         self.pin = pin
         self.pinType = pinType
+        self.min = min
+        self.max = max
     }
 }
 
