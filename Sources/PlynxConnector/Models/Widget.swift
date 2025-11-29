@@ -87,6 +87,14 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Send value only on release (false = real-time)
     public var sendOnReleaseOn: Bool?
     
+    // MARK: - Joystick specific
+    
+    /// Split mode - sends X/Y to separate pins
+    public var split: Bool?
+    
+    /// Auto return to center when released
+    public var autoReturnOn: Bool?
+    
     // MARK: - Display specific
     
     /// Value formatting string
@@ -181,6 +189,7 @@ public struct Widget: Codable, Sendable, Identifiable {
         case deviceId, pin, pinType, value, min, max, frequency
         case pwmMode, rangeMappingOn, onLabel, offLabel, pushMode
         case onButtonState, offButtonState, sendOnReleaseOn
+        case split, autoReturnOn
         case valueFormatting, textAlignment, suffix, maximumFractionDigits
         case dataStreams, labels, startAt, stopAt, days, timezone
         case url, urls, autoScrollOn, textInputOn, textLightOn
