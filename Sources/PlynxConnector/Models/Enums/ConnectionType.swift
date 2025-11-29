@@ -13,5 +13,6 @@ public enum ConnectionType: String, Codable, Sendable {
     case ethernet = "ETHERNET"
     case usb = "USB"
     case bluetooth = "BLUETOOTH"
+    case ble = "BLE"
     case gsm = "GSM"
 }
