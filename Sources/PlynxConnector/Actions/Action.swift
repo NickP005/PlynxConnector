@@ -244,12 +244,12 @@ public enum Action: Sendable {
     
     // MARK: - Push Notifications
     
-    /// Register a push notification token
+    /// Register a push notification token for a dashboard
     /// - Parameters:
-    ///   - token: Push token
-    ///   - type: Token type (e.g., "ios", "android")
-    ///   - uid: Unique device identifier
-    case addPushToken(token: String, type: String, uid: String)
+    ///   - dashId: Dashboard ID to register notifications for
+    ///   - uid: Unique device identifier (used to manage multiple devices)
+    ///   - token: APNs/FCM push token
+    case addPushToken(dashId: Int, uid: String, token: String)
     
     // MARK: - App Management
     
@@ -611,9 +611,9 @@ extension Action {
                               bodyParts: ["\(dashId)", "\(widgetId)"])
             
         // Push Notifications
-        case .addPushToken(let token, let type, let uid):
+        case .addPushToken(let dashId, let uid, let token):
             return BlynkMessage(command: .addPushToken, messageId: messageId,
-                              bodyParts: [token, type, uid])
+                              bodyParts: ["\(dashId)", uid, token])
             
         // App Management
         case .createApp(let app):
