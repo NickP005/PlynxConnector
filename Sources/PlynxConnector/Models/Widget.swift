@@ -453,27 +453,33 @@ public struct DataStream: Codable, Sendable {
         var container = encoder.container(keyedBy: CodingKeys.self)
         
         try container.encodeIfPresent(id, forKey: .id)
-        // For GraphDataStream, encode the nested dataStream object as "pin"
-        // For simple DataStream, encode the pin integer
+        
+        // For GraphDataStream (when dataStream is present), encode differently
+        // GraphDataStream should have: title, graphType, color, targetId, pin (nested), functionType
+        // It should NOT have top-level: pinType, pwmMode, rangeMappingOn, value, min, max, label
         if let nested = dataStream {
+            // This is a GraphDataStream
             try container.encode(nested, forKey: .pin)
+            // Only encode GraphDataStream-specific fields
+            try container.encodeIfPresent(title, forKey: .title)
+            try container.encodeIfPresent(graphType, forKey: .graphType)
+            try container.encodeIfPresent(targetId, forKey: .targetId)
+            try container.encodeIfPresent(functionType, forKey: .functionType)
+            try container.encodeIfPresent(color, forKey: .color)
         } else {
+            // This is a regular DataStream
             try container.encodeIfPresent(pin, forKey: .pin)
+            try container.encodeIfPresent(pinType, forKey: .pinType)
+            try container.encodeIfPresent(pwmMode, forKey: .pwmMode)
+            try container.encodeIfPresent(rangeMappingOn, forKey: .rangeMappingOn)
+            try container.encodeIfPresent(value, forKey: .value)
+            try container.encodeIfPresent(min, forKey: .min)
+            try container.encodeIfPresent(max, forKey: .max)
+            try container.encodeIfPresent(label, forKey: .label)
+            try container.encodeIfPresent(color, forKey: .color)
+            try container.encodeIfPresent(suffix, forKey: .suffix)
+            try container.encodeIfPresent(isHidden, forKey: .isHidden)
         }
-        try container.encodeIfPresent(pinType, forKey: .pinType)
-        try container.encodeIfPresent(pwmMode, forKey: .pwmMode)
-        try container.encodeIfPresent(rangeMappingOn, forKey: .rangeMappingOn)
-        try container.encodeIfPresent(value, forKey: .value)
-        try container.encodeIfPresent(min, forKey: .min)
-        try container.encodeIfPresent(max, forKey: .max)
-        try container.encodeIfPresent(label, forKey: .label)
-        try container.encodeIfPresent(color, forKey: .color)
-        try container.encodeIfPresent(suffix, forKey: .suffix)
-        try container.encodeIfPresent(isHidden, forKey: .isHidden)
-        try container.encodeIfPresent(title, forKey: .title)
-        try container.encodeIfPresent(graphType, forKey: .graphType)
-        try container.encodeIfPresent(targetId, forKey: .targetId)
-        try container.encodeIfPresent(functionType, forKey: .functionType)
     }
 }
 
