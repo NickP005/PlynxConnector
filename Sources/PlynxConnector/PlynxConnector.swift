@@ -821,27 +821,27 @@ public actor Connector {
     /// Request enhanced graph data from the server
     /// - Parameters:
     ///   - dashId: Dashboard ID
-    ///   - deviceId: Device ID
-    ///   - dataStreams: Array of data stream pin numbers to fetch
+    ///   - widgetId: Widget ID (the SuperChart widget)
+    ///   - targetId: Optional target/device ID
     ///   - period: Time period (LIVE, DAY, WEEK, etc.)
     ///   - page: Optional page number for pagination
     /// - Returns: Raw graph data (gzipped) or nil if no data
     public func requestGraphData(
         dashId: Int,
-        deviceId: Int,
-        dataStreams: [Int],
+        widgetId: Int,
+        targetId: Int? = nil,
         period: GraphPeriod,
         page: Int? = nil
     ) async throws -> Data? {
         let action = Action.getEnhancedGraphData(
             dashId: dashId,
-            deviceId: deviceId,
-            dataStreams: dataStreams,
+            widgetId: widgetId,
+            targetId: targetId,
             period: period,
             page: page
         )
         
-        print("[Connector] Requesting graph data: dashId=\(dashId), deviceId=\(deviceId), streams=\(dataStreams), period=\(period.rawValue)")
+        print("[Connector] Requesting graph data: dashId=\(dashId), widgetId=\(widgetId), targetId=\(targetId ?? -1), period=\(period.rawValue)")
         
         let response = try await sendForData(action)
         

@@ -198,11 +198,11 @@ public enum Action: Sendable {
     /// Get enhanced graph data
     /// - Parameters:
     ///   - dashId: Dashboard ID
-    ///   - deviceId: Device ID
-    ///   - dataStreams: Data stream IDs
+    ///   - widgetId: Widget ID (the SuperChart widget)
+    ///   - targetId: Optional target/device ID (appended to dashId as "dashId-targetId")
     ///   - period: Time period
     ///   - page: Optional page number (for pagination)
-    case getEnhancedGraphData(dashId: Int, deviceId: Int, dataStreams: [Int], period: GraphPeriod, page: Int?)
+    case getEnhancedGraphData(dashId: Int, widgetId: Int, targetId: Int?, period: GraphPeriod, page: Int?)
     
     /// Delete enhanced graph data
     /// - Parameters:
@@ -547,10 +547,10 @@ extension Action {
             return BlynkMessage(command: .refreshShareToken, messageId: messageId, body: "\(dashId)")
             
         // Graph & Data
-        case .getEnhancedGraphData(let dashId, let deviceId, let dataStreams, let period, let page):
-            var bodyParts = ["\(dashId)", "\(deviceId)"]
-            bodyParts.append(contentsOf: dataStreams.map { "\($0)" })
-            bodyParts.append(period.rawValue)
+        case .getEnhancedGraphData(let dashId, let widgetId, let targetId, let period, let page):
+            // Format: dashId[-targetId] widgetId period [page]
+            let dashPart = targetId != nil ? "\(dashId)-\(targetId!)" : "\(dashId)"
+            var bodyParts = [dashPart, "\(widgetId)", period.rawValue]
             if let page = page {
                 bodyParts.append("\(page)")
             }
