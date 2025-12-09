@@ -302,6 +302,14 @@ extension Event {
         case .ping:
             return .pong
             
+        case .getEnhancedGraphData:
+            // Server sends back graph data as binary (gzipped)
+            // The rawData contains the gzipped graph data
+            if let rawData = message.rawData, !rawData.isEmpty {
+                return .graphData(rawData)
+            }
+            return nil
+            
         default:
             // Unknown command
             break

@@ -817,6 +817,49 @@ public actor Connector {
         }
         return result
     }
+    
+    /// Request enhanced graph data from the server
+    /// - Parameters:
+    ///   - dashId: Dashboard ID
+    ///   - deviceId: Device ID
+    ///   - dataStreams: Array of data stream pin numbers to fetch
+    ///   - period: Time period (LIVE, DAY, WEEK, etc.)
+    ///   - page: Optional page number for pagination
+    /// - Returns: Raw graph data (gzipped) or nil if no data
+    public func requestGraphData(
+        dashId: Int,
+        deviceId: Int,
+        dataStreams: [Int],
+        period: GraphPeriod,
+        page: Int? = nil
+    ) async throws -> Data? {
+        let action = Action.getEnhancedGraphData(
+            dashId: dashId,
+            deviceId: deviceId,
+            dataStreams: dataStreams,
+            period: period,
+            page: page
+        )
+        
+        print("[Connector] Requesting graph data: dashId=\(dashId), deviceId=\(deviceId), streams=\(dataStreams), period=\(period.rawValue)")
+        
+        let response = try await sendForData(action)
+        
+        // Server responds with getEnhancedGraphData command containing gzipped data
+        // OR a response with noData code
+        if response.command == .getEnhancedGraphData {
+            guard let rawData = response.rawData, !rawData.isEmpty else {
+                print("[Connector] No data in graph response")
+                return nil
+            }
+            
+            print("[Connector] Received graph data: \(rawData.count) bytes (gzipped)")
+            return rawData
+        }
+        
+        print("[Connector] Unexpected response command: \(response.command)")
+        return nil
+    }
 }
 
 // MARK: - Timeout Helper

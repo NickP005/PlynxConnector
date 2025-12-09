@@ -214,10 +214,79 @@ public struct Widget: Codable, Sendable, Identifiable {
         case step, isArrowsOn, isLoopOn, isSendStep, showValueOn
         case split, autoReturnOn, splitMode
         case valueFormatting, textAlignment, suffix, maximumFractionDigits
-        case dataStreams = "pins" // Server uses "pins" for dataStreams in MultiPinWidget
+        case dataStreams  // Changed: use "dataStreams" directly (works for Superchart)
+        case pins         // Also try "pins" for MultiPinWidget compatibility
         case labels, startAt, stopAt, days, timezone
         case url, urls, autoScrollOn, textInputOn, textLightOn
         case notifyWhenOffline, notifyBody, templates, tiles, reports, tabs
+    }
+    
+    // Custom decoder to handle both "dataStreams" and "pins" keys
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decode(Int.self, forKey: .id)
+        type = try container.decodeIfPresent(WidgetType.self, forKey: .type)
+        x = try container.decodeIfPresent(Int.self, forKey: .x)
+        y = try container.decodeIfPresent(Int.self, forKey: .y)
+        width = try container.decodeIfPresent(Int.self, forKey: .width)
+        height = try container.decodeIfPresent(Int.self, forKey: .height)
+        tabId = try container.decodeIfPresent(Int.self, forKey: .tabId)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
+        color = try container.decodeIfPresent(Int.self, forKey: .color)
+        deviceId = try container.decodeIfPresent(Int.self, forKey: .deviceId)
+        pin = try container.decodeIfPresent(Int.self, forKey: .pin)
+        pinType = try container.decodeIfPresent(PinType.self, forKey: .pinType)
+        value = try container.decodeIfPresent(String.self, forKey: .value)
+        min = try container.decodeIfPresent(Double.self, forKey: .min)
+        max = try container.decodeIfPresent(Double.self, forKey: .max)
+        frequency = try container.decodeIfPresent(Int.self, forKey: .frequency)
+        pwmMode = try container.decodeIfPresent(Bool.self, forKey: .pwmMode)
+        rangeMappingOn = try container.decodeIfPresent(Bool.self, forKey: .rangeMappingOn)
+        onLabel = try container.decodeIfPresent(String.self, forKey: .onLabel)
+        offLabel = try container.decodeIfPresent(String.self, forKey: .offLabel)
+        pushMode = try container.decodeIfPresent(Bool.self, forKey: .pushMode)
+        onButtonState = try container.decodeIfPresent(ButtonState.self, forKey: .onButtonState)
+        offButtonState = try container.decodeIfPresent(ButtonState.self, forKey: .offButtonState)
+        sendOnReleaseOn = try container.decodeIfPresent(Bool.self, forKey: .sendOnReleaseOn)
+        step = try container.decodeIfPresent(Double.self, forKey: .step)
+        isArrowsOn = try container.decodeIfPresent(Bool.self, forKey: .isArrowsOn)
+        isLoopOn = try container.decodeIfPresent(Bool.self, forKey: .isLoopOn)
+        isSendStep = try container.decodeIfPresent(Bool.self, forKey: .isSendStep)
+        showValueOn = try container.decodeIfPresent(Bool.self, forKey: .showValueOn)
+        split = try container.decodeIfPresent(Bool.self, forKey: .split)
+        autoReturnOn = try container.decodeIfPresent(Bool.self, forKey: .autoReturnOn)
+        splitMode = try container.decodeIfPresent(Bool.self, forKey: .splitMode)
+        valueFormatting = try container.decodeIfPresent(String.self, forKey: .valueFormatting)
+        textAlignment = try container.decodeIfPresent(String.self, forKey: .textAlignment)
+        suffix = try container.decodeIfPresent(String.self, forKey: .suffix)
+        maximumFractionDigits = try container.decodeIfPresent(Int.self, forKey: .maximumFractionDigits)
+        
+        // Try "dataStreams" first (for Superchart), then "pins" (for MultiPinWidget)
+        if let streams = try container.decodeIfPresent([DataStream].self, forKey: .dataStreams) {
+            dataStreams = streams
+        } else if let pins = try container.decodeIfPresent([DataStream].self, forKey: .pins) {
+            dataStreams = pins
+        } else {
+            dataStreams = nil
+        }
+        
+        labels = try container.decodeIfPresent([String].self, forKey: .labels)
+        startAt = try container.decodeIfPresent(Int.self, forKey: .startAt)
+        stopAt = try container.decodeIfPresent(Int.self, forKey: .stopAt)
+        days = try container.decodeIfPresent(Int.self, forKey: .days)
+        timezone = try container.decodeIfPresent(String.self, forKey: .timezone)
+        url = try container.decodeIfPresent(String.self, forKey: .url)
+        urls = try container.decodeIfPresent([String].self, forKey: .urls)
+        autoScrollOn = try container.decodeIfPresent(Bool.self, forKey: .autoScrollOn)
+        textInputOn = try container.decodeIfPresent(Bool.self, forKey: .textInputOn)
+        textLightOn = try container.decodeIfPresent(Bool.self, forKey: .textLightOn)
+        notifyWhenOffline = try container.decodeIfPresent(Bool.self, forKey: .notifyWhenOffline)
+        notifyBody = try container.decodeIfPresent(String.self, forKey: .notifyBody)
+        templates = try container.decodeIfPresent([TileTemplate].self, forKey: .templates)
+        tiles = try container.decodeIfPresent([Tile].self, forKey: .tiles)
+        reports = try container.decodeIfPresent([Report].self, forKey: .reports)
+        tabs = try container.decodeIfPresent([TabItem].self, forKey: .tabs)
     }
 }
 
@@ -262,11 +331,77 @@ public struct DataStream: Codable, Sendable {
     public var suffix: String?
     public var isHidden: Bool?
     
+    // GraphDataStream specific fields
+    public var title: String?
+    public var graphType: String?  // LINE, BAR, AREA
+    public var targetId: Int?
+    public var functionType: String?  // AVG, MIN, MAX, SUM
+    public var dataStream: NestedDataStream?  // The actual pin config in GraphDataStream
+    
     public init(pin: Int, pinType: PinType = .virtual, min: Double = 0, max: Double = 255) {
         self.pin = pin
         self.pinType = pinType
         self.min = min
         self.max = max
+    }
+    
+    enum CodingKeys: String, CodingKey {
+        case id, pin, pinType, pwmMode, rangeMappingOn, value, min, max, label, color, suffix, isHidden
+        case title, graphType, targetId, functionType
+    }
+    
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        
+        id = try container.decodeIfPresent(Int.self, forKey: .id)
+        pinType = try container.decodeIfPresent(PinType.self, forKey: .pinType)
+        pwmMode = try container.decodeIfPresent(Bool.self, forKey: .pwmMode)
+        rangeMappingOn = try container.decodeIfPresent(Bool.self, forKey: .rangeMappingOn)
+        value = try container.decodeIfPresent(String.self, forKey: .value)
+        min = try container.decodeIfPresent(Double.self, forKey: .min)
+        max = try container.decodeIfPresent(Double.self, forKey: .max)
+        label = try container.decodeIfPresent(String.self, forKey: .label)
+        color = try container.decodeIfPresent(Int.self, forKey: .color)
+        suffix = try container.decodeIfPresent(String.self, forKey: .suffix)
+        isHidden = try container.decodeIfPresent(Bool.self, forKey: .isHidden)
+        title = try container.decodeIfPresent(String.self, forKey: .title)
+        graphType = try container.decodeIfPresent(String.self, forKey: .graphType)
+        targetId = try container.decodeIfPresent(Int.self, forKey: .targetId)
+        functionType = try container.decodeIfPresent(String.self, forKey: .functionType)
+        
+        // "pin" can be either an Int (simple pin) or a NestedDataStream object (GraphDataStream)
+        // Try decoding as Int first, then as NestedDataStream object
+        if let pinInt = try? container.decodeIfPresent(Int.self, forKey: .pin) {
+            pin = pinInt
+            dataStream = nil
+        } else if let nested = try? container.decodeIfPresent(NestedDataStream.self, forKey: .pin) {
+            // GraphDataStream case: "pin" is a nested object
+            dataStream = nested
+            pin = nested.pin  // Extract pin number from nested object
+            // Also get pinType from nested if not already set at top level
+            if pinType == nil {
+                pinType = nested.pinType
+            }
+        } else {
+            pin = nil
+            dataStream = nil
+        }
+    }
+}
+
+/// Nested DataStream for GraphDataStream's "pin" field
+public struct NestedDataStream: Codable, Sendable {
+    public var pin: Int?
+    public var pinType: PinType?
+    public var pwmMode: Bool?
+    public var rangeMappingOn: Bool?
+    public var value: String?
+    public var min: Double?
+    public var max: Double?
+    
+    public init(pin: Int, pinType: PinType = .virtual) {
+        self.pin = pin
+        self.pinType = pinType
     }
 }
 
