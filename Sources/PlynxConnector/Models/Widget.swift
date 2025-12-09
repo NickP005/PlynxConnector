@@ -136,6 +136,12 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Data streams for graph widgets
     public var dataStreams: [DataStream]?
     
+    /// Graph period for SuperChart
+    public var period: GraphPeriod?
+    
+    /// Show legend in graph
+    public var showLegend: Bool?
+    
     // MARK: - Menu/Segmented specific
     
     /// Labels for menu items
@@ -216,6 +222,7 @@ public struct Widget: Codable, Sendable, Identifiable {
         case valueFormatting, textAlignment, suffix, maximumFractionDigits
         case dataStreams  // Changed: use "dataStreams" directly (works for Superchart)
         case pins         // Also try "pins" for MultiPinWidget compatibility
+        case period, showLegend  // SuperChart specific
         case labels, startAt, stopAt, days, timezone
         case url, urls, autoScrollOn, textInputOn, textLightOn
         case notifyWhenOffline, notifyBody, templates, tiles, reports, tabs
@@ -270,6 +277,10 @@ public struct Widget: Codable, Sendable, Identifiable {
         } else {
             dataStreams = nil
         }
+        
+        // SuperChart specific
+        period = try container.decodeIfPresent(GraphPeriod.self, forKey: .period)
+        showLegend = try container.decodeIfPresent(Bool.self, forKey: .showLegend)
         
         labels = try container.decodeIfPresent([String].self, forKey: .labels)
         startAt = try container.decodeIfPresent(Int.self, forKey: .startAt)
@@ -331,6 +342,9 @@ public struct Widget: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(maximumFractionDigits, forKey: .maximumFractionDigits)
         // Encode dataStreams to "dataStreams" key (for consistency)
         try container.encodeIfPresent(dataStreams, forKey: .dataStreams)
+        // SuperChart specific
+        try container.encodeIfPresent(period, forKey: .period)
+        try container.encodeIfPresent(showLegend, forKey: .showLegend)
         try container.encodeIfPresent(labels, forKey: .labels)
         try container.encodeIfPresent(startAt, forKey: .startAt)
         try container.encodeIfPresent(stopAt, forKey: .stopAt)
