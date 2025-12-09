@@ -90,7 +90,7 @@ public struct Widget: Codable, Sendable, Identifiable {
     // MARK: - Step widget specific
     
     /// Step increment value
-    public var step: Float?
+    public var step: Double?
     
     /// Arrows visible
     public var isArrowsOn: Bool?
@@ -288,6 +288,66 @@ public struct Widget: Codable, Sendable, Identifiable {
         reports = try container.decodeIfPresent([Report].self, forKey: .reports)
         tabs = try container.decodeIfPresent([TabItem].self, forKey: .tabs)
     }
+    
+    // Custom encoder to match the decoder
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encode(id, forKey: .id)
+        try container.encodeIfPresent(type, forKey: .type)
+        try container.encodeIfPresent(x, forKey: .x)
+        try container.encodeIfPresent(y, forKey: .y)
+        try container.encodeIfPresent(width, forKey: .width)
+        try container.encodeIfPresent(height, forKey: .height)
+        try container.encodeIfPresent(tabId, forKey: .tabId)
+        try container.encodeIfPresent(label, forKey: .label)
+        try container.encodeIfPresent(color, forKey: .color)
+        try container.encodeIfPresent(deviceId, forKey: .deviceId)
+        try container.encodeIfPresent(pin, forKey: .pin)
+        try container.encodeIfPresent(pinType, forKey: .pinType)
+        try container.encodeIfPresent(value, forKey: .value)
+        try container.encodeIfPresent(min, forKey: .min)
+        try container.encodeIfPresent(max, forKey: .max)
+        try container.encodeIfPresent(frequency, forKey: .frequency)
+        try container.encodeIfPresent(pwmMode, forKey: .pwmMode)
+        try container.encodeIfPresent(rangeMappingOn, forKey: .rangeMappingOn)
+        try container.encodeIfPresent(onLabel, forKey: .onLabel)
+        try container.encodeIfPresent(offLabel, forKey: .offLabel)
+        try container.encodeIfPresent(pushMode, forKey: .pushMode)
+        try container.encodeIfPresent(onButtonState, forKey: .onButtonState)
+        try container.encodeIfPresent(offButtonState, forKey: .offButtonState)
+        try container.encodeIfPresent(sendOnReleaseOn, forKey: .sendOnReleaseOn)
+        try container.encodeIfPresent(step, forKey: .step)
+        try container.encodeIfPresent(isArrowsOn, forKey: .isArrowsOn)
+        try container.encodeIfPresent(isLoopOn, forKey: .isLoopOn)
+        try container.encodeIfPresent(isSendStep, forKey: .isSendStep)
+        try container.encodeIfPresent(showValueOn, forKey: .showValueOn)
+        try container.encodeIfPresent(split, forKey: .split)
+        try container.encodeIfPresent(autoReturnOn, forKey: .autoReturnOn)
+        try container.encodeIfPresent(splitMode, forKey: .splitMode)
+        try container.encodeIfPresent(valueFormatting, forKey: .valueFormatting)
+        try container.encodeIfPresent(textAlignment, forKey: .textAlignment)
+        try container.encodeIfPresent(suffix, forKey: .suffix)
+        try container.encodeIfPresent(maximumFractionDigits, forKey: .maximumFractionDigits)
+        // Encode dataStreams to "dataStreams" key (for consistency)
+        try container.encodeIfPresent(dataStreams, forKey: .dataStreams)
+        try container.encodeIfPresent(labels, forKey: .labels)
+        try container.encodeIfPresent(startAt, forKey: .startAt)
+        try container.encodeIfPresent(stopAt, forKey: .stopAt)
+        try container.encodeIfPresent(days, forKey: .days)
+        try container.encodeIfPresent(timezone, forKey: .timezone)
+        try container.encodeIfPresent(url, forKey: .url)
+        try container.encodeIfPresent(urls, forKey: .urls)
+        try container.encodeIfPresent(autoScrollOn, forKey: .autoScrollOn)
+        try container.encodeIfPresent(textInputOn, forKey: .textInputOn)
+        try container.encodeIfPresent(textLightOn, forKey: .textLightOn)
+        try container.encodeIfPresent(notifyWhenOffline, forKey: .notifyWhenOffline)
+        try container.encodeIfPresent(notifyBody, forKey: .notifyBody)
+        try container.encodeIfPresent(templates, forKey: .templates)
+        try container.encodeIfPresent(tiles, forKey: .tiles)
+        try container.encodeIfPresent(reports, forKey: .reports)
+        try container.encodeIfPresent(tabs, forKey: .tabs)
+    }
 }
 
 /// Button state for StyledButton widget.
@@ -386,6 +446,34 @@ public struct DataStream: Codable, Sendable {
             pin = nil
             dataStream = nil
         }
+    }
+    
+    // Custom encoder to match the decoder
+    public func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        
+        try container.encodeIfPresent(id, forKey: .id)
+        // For GraphDataStream, encode the nested dataStream object as "pin"
+        // For simple DataStream, encode the pin integer
+        if let nested = dataStream {
+            try container.encode(nested, forKey: .pin)
+        } else {
+            try container.encodeIfPresent(pin, forKey: .pin)
+        }
+        try container.encodeIfPresent(pinType, forKey: .pinType)
+        try container.encodeIfPresent(pwmMode, forKey: .pwmMode)
+        try container.encodeIfPresent(rangeMappingOn, forKey: .rangeMappingOn)
+        try container.encodeIfPresent(value, forKey: .value)
+        try container.encodeIfPresent(min, forKey: .min)
+        try container.encodeIfPresent(max, forKey: .max)
+        try container.encodeIfPresent(label, forKey: .label)
+        try container.encodeIfPresent(color, forKey: .color)
+        try container.encodeIfPresent(suffix, forKey: .suffix)
+        try container.encodeIfPresent(isHidden, forKey: .isHidden)
+        try container.encodeIfPresent(title, forKey: .title)
+        try container.encodeIfPresent(graphType, forKey: .graphType)
+        try container.encodeIfPresent(targetId, forKey: .targetId)
+        try container.encodeIfPresent(functionType, forKey: .functionType)
     }
 }
 
