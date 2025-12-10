@@ -104,6 +104,11 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Show current value
     public var showValueOn: Bool?
     
+    // MARK: - LevelDisplay specific
+    
+    /// Flip vertical axis direction
+    public var isAxisFlipOn: Bool?
+    
     // MARK: - Joystick specific
     
     /// Split mode - sends X/Y to separate pins
@@ -218,6 +223,7 @@ public struct Widget: Codable, Sendable, Identifiable {
         case pwmMode, rangeMappingOn, onLabel, offLabel, pushMode
         case onButtonState, offButtonState, sendOnReleaseOn
         case step, isArrowsOn, isLoopOn, isSendStep, showValueOn
+        case isAxisFlipOn
         case split, autoReturnOn, splitMode
         case valueFormatting, textAlignment, suffix, maximumFractionDigits
         case dataStreams  // Changed: use "dataStreams" directly (works for Superchart)
@@ -261,6 +267,7 @@ public struct Widget: Codable, Sendable, Identifiable {
         isLoopOn = try container.decodeIfPresent(Bool.self, forKey: .isLoopOn)
         isSendStep = try container.decodeIfPresent(Bool.self, forKey: .isSendStep)
         showValueOn = try container.decodeIfPresent(Bool.self, forKey: .showValueOn)
+        isAxisFlipOn = try container.decodeIfPresent(Bool.self, forKey: .isAxisFlipOn)
         split = try container.decodeIfPresent(Bool.self, forKey: .split)
         autoReturnOn = try container.decodeIfPresent(Bool.self, forKey: .autoReturnOn)
         splitMode = try container.decodeIfPresent(Bool.self, forKey: .splitMode)
@@ -333,6 +340,7 @@ public struct Widget: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(isLoopOn, forKey: .isLoopOn)
         try container.encodeIfPresent(isSendStep, forKey: .isSendStep)
         try container.encodeIfPresent(showValueOn, forKey: .showValueOn)
+        try container.encodeIfPresent(isAxisFlipOn, forKey: .isAxisFlipOn)
         try container.encodeIfPresent(split, forKey: .split)
         try container.encodeIfPresent(autoReturnOn, forKey: .autoReturnOn)
         try container.encodeIfPresent(splitMode, forKey: .splitMode)
