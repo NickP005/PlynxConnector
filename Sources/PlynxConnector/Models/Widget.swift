@@ -348,8 +348,14 @@ public struct Widget: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(textAlignment, forKey: .textAlignment)
         try container.encodeIfPresent(suffix, forKey: .suffix)
         try container.encodeIfPresent(maximumFractionDigits, forKey: .maximumFractionDigits)
-        // Encode dataStreams to "dataStreams" key (for consistency)
+        
+        // Encode dataStreams to BOTH "dataStreams" and "pins" keys
+        // Server expects "pins" for backward compatibility with MultiPinWidget (ZeRGBa, Joystick)
         try container.encodeIfPresent(dataStreams, forKey: .dataStreams)
+        if let streams = dataStreams, !streams.isEmpty {
+            try container.encode(streams, forKey: .pins)
+        }
+        
         // SuperChart specific
         try container.encodeIfPresent(period, forKey: .period)
         try container.encodeIfPresent(showLegend, forKey: .showLegend)
