@@ -122,6 +122,9 @@ public enum CommandCode: UInt8, Sendable {
     case trackDevice = 73
     case resolveEvent = 75
     
+    // MARK: - Account Management
+    case deleteAccount = 95
+    
     /// Human-readable name for debugging
     public var name: String {
         switch self {
@@ -203,6 +206,7 @@ public enum CommandCode: UInt8, Sendable {
         case .deleteReport: return "DELETE_REPORT"
         case .exportReport: return "EXPORT_REPORT"
         case .resetPassword: return "RESET_PASSWORD"
+        case .deleteAccount: return "DELETE_ACCOUNT"
         }
     }
 }

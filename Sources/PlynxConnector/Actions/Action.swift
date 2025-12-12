@@ -290,6 +290,13 @@ public enum Action: Sendable {
     /// Redeem a promotional code
     case redeem(code: String)
     
+    // MARK: - Account Management
+    
+    /// Delete user account permanently
+    /// - Parameter password: User's password for verification (required)
+    /// - Note: Account data is backed up for 5 days before permanent deletion
+    case deleteAccount(password: String)
+    
     // MARK: - Utility
     
     /// Send a ping (keep-alive)
@@ -658,6 +665,10 @@ extension Action {
             
         case .redeem(let code):
             return BlynkMessage(command: .redeem, messageId: messageId, body: code)
+            
+        // Account Management
+        case .deleteAccount(let password):
+            return BlynkMessage(command: .deleteAccount, messageId: messageId, body: password)
             
         // Utility
         case .ping:
