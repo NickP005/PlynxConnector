@@ -506,6 +506,18 @@ public actor Connector {
                     print("[Connector] No stored credentials for reconnection")
                     return
                 }
+            } catch let error as PlynxError {
+                print("[Connector] Reconnect attempt \(reconnectAttempt) failed: \(error)")
+                
+                // If user is not registered (account deleted), stop reconnecting
+                if case .authenticationFailed(let code) = error {
+                    if code == .userNotRegistered || code == .invalidToken {
+                        print("[Connector] Account no longer exists or invalid, stopping reconnection")
+                        eventsContinuation?.yield(.loginFailed(code))
+                        return
+                    }
+                }
+                // Continue to next attempt for other errors
             } catch {
                 print("[Connector] Reconnect attempt \(reconnectAttempt) failed: \(error)")
                 // Continue to next attempt
