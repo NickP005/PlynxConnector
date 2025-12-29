@@ -295,7 +295,7 @@ public enum Action: Sendable {
     /// Delete user account permanently
     /// - Parameter password: User's password for verification (required)
     /// - Note: Account data is backed up for 5 days before permanent deletion
-    case deleteAccount(password: String)
+    case deleteAccount(email: String, password: String)
     
     // MARK: - Utility
     
@@ -667,8 +667,10 @@ extension Action {
             return BlynkMessage(command: .redeem, messageId: messageId, body: code)
             
         // Account Management
-        case .deleteAccount(let password):
-            return BlynkMessage(command: .deleteAccount, messageId: messageId, body: password)
+        case .deleteAccount(let email, let password):
+            // Password must be SHA256 hashed with email as salt (same as login/register)
+            let passwordHash = SHA256Helper.makeHash(password: password, email: email)
+            return BlynkMessage(command: .deleteAccount, messageId: messageId, body: passwordHash)
             
         // Utility
         case .ping:
