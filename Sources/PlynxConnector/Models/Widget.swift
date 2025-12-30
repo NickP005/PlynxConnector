@@ -351,11 +351,11 @@ public struct Widget: Codable, Sendable, Identifiable {
         
         // Encode dataStreams - only use "dataStreams" key
         // Note: SuperChart (ENHANCED_GRAPH) expects "dataStreams" only, not "pins"
-        // ZeRGBa and Joystick use dataStreams array internally but server expects "pins"
+        // RGB Picker and TwoAxisJoystick use dataStreams array internally but server expects "pins"
         // So we conditionally encode based on widget type
-        let isMultiPinWidget = type == .zeRGBa || type == .joystick || type == .rgbPicker
+        let isMultiPinWidget = type == .rgbPicker || type == .twoAxisJoystick
         if isMultiPinWidget {
-            // MultiPinWidget (ZeRGBa, Joystick, RGB) - server expects "pins" key
+            // MultiPinWidget (RGB Picker, TwoAxisJoystick) - server expects "pins" key
             if let streams = dataStreams, !streams.isEmpty {
                 try container.encode(streams, forKey: .pins)
             }
