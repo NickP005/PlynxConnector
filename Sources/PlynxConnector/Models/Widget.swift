@@ -349,11 +349,19 @@ public struct Widget: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(suffix, forKey: .suffix)
         try container.encodeIfPresent(maximumFractionDigits, forKey: .maximumFractionDigits)
         
-        // Encode dataStreams to BOTH "dataStreams" and "pins" keys
-        // Server expects "pins" for backward compatibility with MultiPinWidget (ZeRGBa, Joystick)
-        try container.encodeIfPresent(dataStreams, forKey: .dataStreams)
-        if let streams = dataStreams, !streams.isEmpty {
-            try container.encode(streams, forKey: .pins)
+        // Encode dataStreams - only use "dataStreams" key
+        // Note: SuperChart (ENHANCED_GRAPH) expects "dataStreams" only, not "pins"
+        // ZeRGBa and Joystick use dataStreams array internally but server expects "pins"
+        // So we conditionally encode based on widget type
+        let isMultiPinWidget = type == .zeRGBa || type == .joystick || type == .rgbPicker
+        if isMultiPinWidget {
+            // MultiPinWidget (ZeRGBa, Joystick, RGB) - server expects "pins" key
+            if let streams = dataStreams, !streams.isEmpty {
+                try container.encode(streams, forKey: .pins)
+            }
+        } else {
+            // SuperChart and other widgets - use "dataStreams" key
+            try container.encodeIfPresent(dataStreams, forKey: .dataStreams)
         }
         
         // SuperChart specific
