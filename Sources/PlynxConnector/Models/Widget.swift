@@ -160,6 +160,12 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Stop time (seconds from midnight)
     public var stopAt: Int?
     
+    /// Value written to pin when startTime triggers
+    public var startValue: String?
+    
+    /// Value written to pin when stopTime triggers
+    public var stopValue: String?
+    
     /// Days of week (bitmask)
     public var days: Int?
     
@@ -229,7 +235,11 @@ public struct Widget: Codable, Sendable, Identifiable {
         case dataStreams  // Changed: use "dataStreams" directly (works for Superchart)
         case pins         // Also try "pins" for MultiPinWidget compatibility
         case period, showLegend  // SuperChart specific
-        case labels, startAt, stopAt, days, timezone
+        case labels
+        case startAt = "startTime"
+        case stopAt = "stopTime"
+        case startValue, stopValue
+        case days, timezone
         case url, urls, autoScrollOn, textInputOn, textLightOn
         case notifyWhenOffline, notifyBody, templates, tiles, reports, tabs
     }
@@ -292,6 +302,8 @@ public struct Widget: Codable, Sendable, Identifiable {
         labels = try container.decodeIfPresent([String].self, forKey: .labels)
         startAt = try container.decodeIfPresent(Int.self, forKey: .startAt)
         stopAt = try container.decodeIfPresent(Int.self, forKey: .stopAt)
+        startValue = try container.decodeIfPresent(String.self, forKey: .startValue)
+        stopValue = try container.decodeIfPresent(String.self, forKey: .stopValue)
         days = try container.decodeIfPresent(Int.self, forKey: .days)
         timezone = try container.decodeIfPresent(String.self, forKey: .timezone)
         url = try container.decodeIfPresent(String.self, forKey: .url)
@@ -370,6 +382,8 @@ public struct Widget: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(labels, forKey: .labels)
         try container.encodeIfPresent(startAt, forKey: .startAt)
         try container.encodeIfPresent(stopAt, forKey: .stopAt)
+        try container.encodeIfPresent(startValue, forKey: .startValue)
+        try container.encodeIfPresent(stopValue, forKey: .stopValue)
         try container.encodeIfPresent(days, forKey: .days)
         try container.encodeIfPresent(timezone, forKey: .timezone)
         try container.encodeIfPresent(url, forKey: .url)
