@@ -20,14 +20,16 @@ final class PlynxConnectorTests: XCTestCase {
         let message = BlynkMessage(command: .login, messageId: 1, body: "test@example.com\0password\0MyApp")
         let data = message.serialize()
         
-        // Header: 1 byte command + 2 bytes msgId + 2 bytes length = 5 bytes
+        // Header: 1 byte command + 2 bytes msgId + 4 bytes length = 7 bytes (mobile protocol)
         XCTAssertEqual(data[0], 2) // login command
         XCTAssertEqual(data[1], 0) // msgId high byte
         XCTAssertEqual(data[2], 1) // msgId low byte
         
-        let bodyLength = UInt16(message.body.utf8.count)
-        XCTAssertEqual(data[3], UInt8(bodyLength >> 8)) // length high byte
-        XCTAssertEqual(data[4], UInt8(bodyLength & 0xFF)) // length low byte
+        let bodyLength = UInt32(message.body.utf8.count)
+        XCTAssertEqual(data[3], UInt8((bodyLength >> 24) & 0xFF)) // length byte 0
+        XCTAssertEqual(data[4], UInt8((bodyLength >> 16) & 0xFF)) // length byte 1
+        XCTAssertEqual(data[5], UInt8((bodyLength >> 8) & 0xFF))  // length byte 2
+        XCTAssertEqual(data[6], UInt8(bodyLength & 0xFF))         // length byte 3
     }
     
     func testMessageParser() {

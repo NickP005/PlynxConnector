@@ -187,15 +187,11 @@ public final class MessageParser: @unchecked Sendable {
                             (UInt32(headerBytes[5]) << 8) |
                             UInt32(headerBytes[6])
         
-        // Debug logging
-        print("[MessageParser] Parsing: cmd=\(command), msgId=\(messageId), lengthOrStatus=\(lengthOrStatus), bufferSize=\(buffer.count)")
-        
         // Handle response (command == 0)
         if command == CommandCode.response.rawValue {
             // For responses, lengthOrStatus is the response code, no body
             buffer.removeFirst(BlynkMessage.headerSize)
             let code = ResponseCode(rawValue: Int(lengthOrStatus))
-            print("[MessageParser] Parsed response: msgId=\(messageId), code=\(code)")
             return .response(BlynkResponse(messageId: messageId, code: code))
         }
         
@@ -204,7 +200,6 @@ public final class MessageParser: @unchecked Sendable {
         
         // Sanity check: body length should be reasonable (max 10MB)
         guard bodyLength >= 0 && bodyLength < 10_000_000 else {
-            print("[MessageParser] ⚠️ Invalid body length: \(bodyLength), skipping message")
             // Skip this malformed message header
             if buffer.count >= BlynkMessage.headerSize {
                 buffer.removeFirst(BlynkMessage.headerSize)
@@ -215,7 +210,6 @@ public final class MessageParser: @unchecked Sendable {
         let totalLength = BlynkMessage.headerSize + bodyLength
         
         guard buffer.count >= totalLength else {
-            print("[MessageParser] Waiting for more data: need \(totalLength), have \(buffer.count)")
             return nil
         }
         
@@ -225,18 +219,12 @@ public final class MessageParser: @unchecked Sendable {
         let bodyData = Data(buffer[bodyStartIndex..<bodyEndIndex])
         let body = String(data: bodyData, encoding: .utf8) ?? ""
         
-        // Debug: print raw body bytes
-        print("[MessageParser] Body bytes: \(bodyData.map { String(format: "%02X", $0) }.joined(separator: " "))")
-        
         // Remove parsed message from buffer
         buffer.removeFirst(totalLength)
         
         guard let cmd = CommandCode(rawValue: command) else {
-            print("[MessageParser] Unknown command: \(command)")
             return nil
         }
-        
-        print("[MessageParser] Parsed command: \(cmd), bodyLength=\(bodyLength)")
         // Store raw data for binary commands like loadProfileGzipped
         let message = BlynkMessage(command: cmd, messageId: messageId, body: body, rawData: bodyData)
         return .command(message)

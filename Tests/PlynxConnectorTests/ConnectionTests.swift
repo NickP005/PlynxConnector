@@ -96,7 +96,7 @@ final class ConnectionTests: XCTestCase {
         print("\n=== TEST: Connector Basic Connection ===")
         print("Tentativo di connessione a \(testHost):\(testPort)")
         
-        let connector = PlynxConnector(host: testHost, port: testPort)
+        let connector = Connector(host: testHost, port: testPort)
         
         // Imposta un timeout breve
         await connector.setResponseTimeout(5.0)
@@ -132,7 +132,7 @@ final class ConnectionTests: XCTestCase {
     func testConnectorEvents() async throws {
         print("\n=== TEST: Connector Events ===")
         
-        let connector = PlynxConnector(host: testHost, port: testPort)
+        let connector = Connector(host: testHost, port: testPort)
         
         // Traccia gli eventi ricevuti
         var receivedEvents: [String] = []
@@ -187,7 +187,7 @@ final class ConnectionTests: XCTestCase {
         let email = "test@example.com"
         let password = "password123"
         
-        let connector = PlynxConnector(host: testHost, port: testPort)
+        let connector = Connector(host: testHost, port: testPort)
         
         do {
             try await connector.connect(
@@ -223,7 +223,7 @@ final class ConnectionTests: XCTestCase {
         var times: [TimeInterval] = []
         
         for i in 1...3 {
-            let connector = PlynxConnector(host: testHost, port: testPort)
+            let connector = Connector(host: testHost, port: testPort)
             
             let startTime = Date()
             
@@ -252,7 +252,7 @@ final class ConnectionTests: XCTestCase {
 
 // MARK: - Helper extension
 
-extension PlynxConnector {
+extension Connector {
     func setResponseTimeout(_ timeout: TimeInterval) async {
         // Se c'è un modo per impostare il timeout
         // self.responseTimeout = timeout

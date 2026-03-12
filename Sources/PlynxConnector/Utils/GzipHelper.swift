@@ -29,8 +29,6 @@ public enum GzipHelper {
         let isGzip = data.count >= 2 && data[0] == 0x1f && data[1] == 0x8b
         
         if !isZlib && !isGzip {
-            // Not compressed, return as-is (might be plain JSON)
-            print("[GzipHelper] Data doesn't appear compressed (first bytes: \(data.prefix(4).map { String(format: "%02X", $0) }.joined(separator: " ")))")
             return data
         }
         
@@ -85,7 +83,6 @@ public enum GzipHelper {
         }
         
         decompressedData.count = result
-        print("[GzipHelper] Decompressed zlib: \(data.count) -> \(result) bytes")
         return decompressedData
     }
     

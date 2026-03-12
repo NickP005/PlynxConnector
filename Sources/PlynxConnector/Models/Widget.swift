@@ -160,6 +160,12 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Stop time (seconds from midnight)
     public var stopAt: Int?
     
+    /// Value written to pin when startTime triggers
+    public var startValue: String?
+    
+    /// Value written to pin when stopTime triggers
+    public var stopValue: String?
+    
     /// Days of week (bitmask)
     public var days: Int?
     
@@ -193,10 +199,55 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Notification body
     public var notifyBody: String?
     
+    /// Delay in ms before sending offline notification (0 = immediate)
+    public var notifyWhenOfflineIgnorePeriod: Int?
+    
+    /// Push priority (normal, high)
+    public var priority: String?
+    
+    // MARK: - Map specific
+    
+    /// Auto-center to latest GPS point
+    public var isPinToLatestPoint: Bool?
+    
+    /// Show user's own location
+    public var isMyLocationSupported: Bool?
+    
+    /// Satellite map view
+    public var isSatelliteMode: Bool?
+    
+    /// Map label format
+    public var labelFormat: String?
+    
+    /// Map zoom radius
+    public var radius: Int?
+    
     // MARK: - Tabs specific
     
     /// Tabs for Tabs widget
     public var tabs: [TabItem]?
+    
+    // MARK: - Table specific
+    
+    /// Whether tapping a row notifies the hardware
+    public var isClickableRows: Bool?
+    
+    /// Whether row reordering is allowed (server uses "isReoderingAllowed" typo)
+    public var isReoderingAllowed: Bool?
+    
+    /// Currently selected row index
+    public var currentRowIndex: Int?
+    
+    /// Row data from server profile
+    public var rows: [TableRow]?
+    
+    /// Column definitions
+    public var columns: [TableColumn]?
+    
+    // MARK: - Eventor specific
+    
+    /// Eventor automation rules
+    public var rules: [EventorRule]?
     
     // MARK: - DeviceTiles specific
     
@@ -229,9 +280,17 @@ public struct Widget: Codable, Sendable, Identifiable {
         case dataStreams  // Changed: use "dataStreams" directly (works for Superchart)
         case pins         // Also try "pins" for MultiPinWidget compatibility
         case period, showLegend  // SuperChart specific
-        case labels, startAt, stopAt, days, timezone
+        case labels
+        case startAt = "startTime"
+        case stopAt = "stopTime"
+        case startValue, stopValue
+        case days, timezone
         case url, urls, autoScrollOn, textInputOn, textLightOn
-        case notifyWhenOffline, notifyBody, templates, tiles, reports, tabs
+        case notifyWhenOffline, notifyBody, notifyWhenOfflineIgnorePeriod, priority
+        case isPinToLatestPoint, isMyLocationSupported, isSatelliteMode, labelFormat, radius
+        case templates, tiles, reports, tabs
+        case isClickableRows, isReoderingAllowed, currentRowIndex, rows, columns
+        case rules
     }
     
     // Custom decoder to handle both "dataStreams" and "pins" keys
@@ -292,6 +351,8 @@ public struct Widget: Codable, Sendable, Identifiable {
         labels = try container.decodeIfPresent([String].self, forKey: .labels)
         startAt = try container.decodeIfPresent(Int.self, forKey: .startAt)
         stopAt = try container.decodeIfPresent(Int.self, forKey: .stopAt)
+        startValue = try container.decodeIfPresent(String.self, forKey: .startValue)
+        stopValue = try container.decodeIfPresent(String.self, forKey: .stopValue)
         days = try container.decodeIfPresent(Int.self, forKey: .days)
         timezone = try container.decodeIfPresent(String.self, forKey: .timezone)
         url = try container.decodeIfPresent(String.self, forKey: .url)
@@ -301,10 +362,23 @@ public struct Widget: Codable, Sendable, Identifiable {
         textLightOn = try container.decodeIfPresent(Bool.self, forKey: .textLightOn)
         notifyWhenOffline = try container.decodeIfPresent(Bool.self, forKey: .notifyWhenOffline)
         notifyBody = try container.decodeIfPresent(String.self, forKey: .notifyBody)
+        notifyWhenOfflineIgnorePeriod = try container.decodeIfPresent(Int.self, forKey: .notifyWhenOfflineIgnorePeriod)
+        priority = try container.decodeIfPresent(String.self, forKey: .priority)
+        isPinToLatestPoint = try container.decodeIfPresent(Bool.self, forKey: .isPinToLatestPoint)
+        isMyLocationSupported = try container.decodeIfPresent(Bool.self, forKey: .isMyLocationSupported)
+        isSatelliteMode = try container.decodeIfPresent(Bool.self, forKey: .isSatelliteMode)
+        labelFormat = try container.decodeIfPresent(String.self, forKey: .labelFormat)
+        radius = try container.decodeIfPresent(Int.self, forKey: .radius)
         templates = try container.decodeIfPresent([TileTemplate].self, forKey: .templates)
         tiles = try container.decodeIfPresent([Tile].self, forKey: .tiles)
         reports = try container.decodeIfPresent([Report].self, forKey: .reports)
         tabs = try container.decodeIfPresent([TabItem].self, forKey: .tabs)
+        isClickableRows = try container.decodeIfPresent(Bool.self, forKey: .isClickableRows)
+        isReoderingAllowed = try container.decodeIfPresent(Bool.self, forKey: .isReoderingAllowed)
+        currentRowIndex = try container.decodeIfPresent(Int.self, forKey: .currentRowIndex)
+        rows = try container.decodeIfPresent([TableRow].self, forKey: .rows)
+        columns = try container.decodeIfPresent([TableColumn].self, forKey: .columns)
+        rules = try container.decodeIfPresent([EventorRule].self, forKey: .rules)
     }
     
     // Custom encoder to match the decoder
@@ -370,6 +444,8 @@ public struct Widget: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(labels, forKey: .labels)
         try container.encodeIfPresent(startAt, forKey: .startAt)
         try container.encodeIfPresent(stopAt, forKey: .stopAt)
+        try container.encodeIfPresent(startValue, forKey: .startValue)
+        try container.encodeIfPresent(stopValue, forKey: .stopValue)
         try container.encodeIfPresent(days, forKey: .days)
         try container.encodeIfPresent(timezone, forKey: .timezone)
         try container.encodeIfPresent(url, forKey: .url)
@@ -379,10 +455,23 @@ public struct Widget: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(textLightOn, forKey: .textLightOn)
         try container.encodeIfPresent(notifyWhenOffline, forKey: .notifyWhenOffline)
         try container.encodeIfPresent(notifyBody, forKey: .notifyBody)
+        try container.encodeIfPresent(notifyWhenOfflineIgnorePeriod, forKey: .notifyWhenOfflineIgnorePeriod)
+        try container.encodeIfPresent(priority, forKey: .priority)
+        try container.encodeIfPresent(isPinToLatestPoint, forKey: .isPinToLatestPoint)
+        try container.encodeIfPresent(isMyLocationSupported, forKey: .isMyLocationSupported)
+        try container.encodeIfPresent(isSatelliteMode, forKey: .isSatelliteMode)
+        try container.encodeIfPresent(labelFormat, forKey: .labelFormat)
+        try container.encodeIfPresent(radius, forKey: .radius)
         try container.encodeIfPresent(templates, forKey: .templates)
         try container.encodeIfPresent(tiles, forKey: .tiles)
         try container.encodeIfPresent(reports, forKey: .reports)
         try container.encodeIfPresent(tabs, forKey: .tabs)
+        try container.encodeIfPresent(isClickableRows, forKey: .isClickableRows)
+        try container.encodeIfPresent(isReoderingAllowed, forKey: .isReoderingAllowed)
+        try container.encodeIfPresent(currentRowIndex, forKey: .currentRowIndex)
+        try container.encodeIfPresent(rows, forKey: .rows)
+        try container.encodeIfPresent(columns, forKey: .columns)
+        try container.encodeIfPresent(rules, forKey: .rules)
     }
 }
 
@@ -409,6 +498,28 @@ public struct TabItem: Codable, Sendable, Identifiable {
     public init(id: Int, label: String? = nil) {
         self.id = id
         self.label = label
+    }
+}
+
+public struct TableRow: Codable, Sendable {
+    public var id: Int
+    public var name: String?
+    public var value: String?
+    public var isSelected: Bool?
+    
+    public init(id: Int, name: String? = nil, value: String? = nil, isSelected: Bool? = nil) {
+        self.id = id
+        self.name = name
+        self.value = value
+        self.isSelected = isSelected
+    }
+}
+
+public struct TableColumn: Codable, Sendable {
+    public var name: String?
+    
+    public init(name: String?) {
+        self.name = name
     }
 }
 
