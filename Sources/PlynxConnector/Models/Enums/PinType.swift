@@ -12,6 +12,13 @@ public enum PinType: String, Codable, Sendable {
     case virtual = "VIRTUAL"
     case digital = "DIGITAL"
     case analog = "ANALOG"
+    case unknown = "UNKNOWN"
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        self = PinType(rawValue: value) ?? .unknown
+    }
     
     /// Short code used in protocol (v, d, a)
     public var code: String {
@@ -19,6 +26,7 @@ public enum PinType: String, Codable, Sendable {
         case .virtual: return "v"
         case .digital: return "d"
         case .analog: return "a"
+        case .unknown: return "v"
         }
     }
     

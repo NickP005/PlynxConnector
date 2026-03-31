@@ -70,6 +70,13 @@ public enum ReportType: String, Codable, Sendable {
     case daily = "DAILY"
     case weekly = "WEEKLY"
     case monthly = "MONTHLY"
+    case unknown = "UNKNOWN"
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        self = ReportType(rawValue: value) ?? .unknown
+    }
 }
 
 /// Data aggregation period.
@@ -77,4 +84,11 @@ public enum GranularityType: String, Codable, Sendable {
     case minute = "MINUTE"
     case hourly = "HOURLY"
     case daily = "DAILY"
+    case unknown = "UNKNOWN"
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        self = GranularityType(rawValue: value) ?? .unknown
+    }
 }

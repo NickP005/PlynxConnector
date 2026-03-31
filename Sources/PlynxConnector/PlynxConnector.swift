@@ -69,7 +69,7 @@ public actor Connector {
     
     // MARK: - Connection
     
-    public func connect(email: String, password: String, appName: String = "Plynx") async throws {
+    public func connect(email: String, password: String, appName: String = "Blynk") async throws {
         storedEmail = email
         storedPassword = password
         storedAppName = appName
@@ -134,7 +134,7 @@ public actor Connector {
         }
     }
     
-    public func register(email: String, password: String, appName: String = "Plynx") async throws {
+    public func register(email: String, password: String, appName: String = "Blynk") async throws {
         let sock = PlynxSocket(host: host, port: port, useSSL: useSSL)
         self.socket = sock
         
@@ -159,7 +159,7 @@ public actor Connector {
         }
     }
     
-    public func requestPasswordReset(email: String, appName: String = "Plynx") async throws {
+    public func requestPasswordReset(email: String, appName: String = "Blynk") async throws {
         let sock = PlynxSocket(host: host, port: port, useSSL: useSSL)
         self.socket = sock
         
@@ -678,7 +678,9 @@ private func withTimeout<T>(seconds: TimeInterval, operation: @escaping () async
             throw PlynxError.timeout
         }
         
-        let result = try await group.next()!
+        guard let result = try await group.next() else {
+            throw PlynxError.timeout
+        }
         group.cancelAll()
         return result
     }

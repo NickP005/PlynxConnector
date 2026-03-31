@@ -15,4 +15,11 @@ public enum ConnectionType: String, Codable, Sendable {
     case bluetooth = "BLUETOOTH"
     case ble = "BLE"
     case gsm = "GSM"
+    case unknown = "UNKNOWN"
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        self = ConnectionType(rawValue: value) ?? .unknown
+    }
 }

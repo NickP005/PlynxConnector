@@ -70,9 +70,12 @@ actor PlynxSocket {
             parameters = NWParameters(tls: nil, tcp: tcpOptions)
         }
         
+        guard let nwPort = NWEndpoint.Port(rawValue: port) else {
+            throw PlynxError.connectionFailed(underlying: nil)
+        }
         let endpoint = NWEndpoint.hostPort(
             host: NWEndpoint.Host(host),
-            port: NWEndpoint.Port(rawValue: port)!
+            port: nwPort
         )
         
         let conn = NWConnection(to: endpoint, using: parameters)

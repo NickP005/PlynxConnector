@@ -42,7 +42,7 @@ public actor MockConnector {
         eventsContinuation?.finish()
     }
 
-    public func connect(email: String, password: String, appName: String = "Plynx") async throws {
+    public func connect(email: String, password: String, appName: String = "Blynk") async throws {
         if shouldFailConnect {
             throw PlynxError.connectionFailed(underlying: nil)
         }
@@ -64,7 +64,7 @@ public actor MockConnector {
         onConnectionStateChanged?(true, true)
     }
 
-    public func register(email: String, password: String, appName: String = "Plynx") async throws {
+    public func register(email: String, password: String, appName: String = "Blynk") async throws {
         if shouldFailConnect {
             throw PlynxError.connectionFailed(underlying: nil)
         }

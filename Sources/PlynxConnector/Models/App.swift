@@ -43,4 +43,11 @@ public struct App: Codable, Sendable, Identifiable {
 public enum ProvisionType: String, Codable, Sendable {
     case staticProvision = "STATIC"
     case dynamicProvision = "DYNAMIC"
+    case unknown = "UNKNOWN"
+
+    public init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        let value = try container.decode(String.self)
+        self = ProvisionType(rawValue: value) ?? .unknown
+    }
 }

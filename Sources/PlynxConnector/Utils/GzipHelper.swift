@@ -41,87 +41,102 @@ public enum GzipHelper {
     
     /// Decompress zlib-wrapped deflate data
     private static func decompressZlib(_ data: Data) throws -> Data {
-        // Zlib format: 2-byte header + deflate data + 4-byte adler32 checksum
-        // We skip the 2-byte header and ignore the 4-byte trailer
         guard data.count > 6 else {
             throw PlynxError.decodingError(NSError(domain: "GzipHelper", code: -1,
                                                    userInfo: [NSLocalizedDescriptionKey: "Zlib data too short"]))
         }
         
-        // Start with a reasonable buffer size, will grow if needed
-        var decompressedSize = max(data.count * 10, 1024)
-        var decompressedData = Data(count: decompressedSize)
-        
-        let result = decompressedData.withUnsafeMutableBytes { destBuffer -> Int in
-            let destPtr = destBuffer.bindMemory(to: UInt8.self).baseAddress!
-            
-            return data.withUnsafeBytes { sourceBuffer -> Int in
-                let sourcePtr = sourceBuffer.bindMemory(to: UInt8.self).baseAddress!
-                
-                // Skip 2-byte zlib header, exclude 4-byte adler32 trailer
-                let compressedStart = 2
-                let compressedLength = data.count - 2 - 4
-                
-                guard compressedLength > 0 else { return 0 }
-                
-                let decodedSize = compression_decode_buffer(
-                    destPtr,
-                    decompressedSize,
-                    sourcePtr.advanced(by: compressedStart),
-                    compressedLength,
-                    nil,
-                    COMPRESSION_ZLIB
-                )
-                
-                return decodedSize
-            }
-        }
-        
-        guard result > 0 else {
+        let compressedStart = 2
+        let compressedLength = data.count - 2 - 4
+        guard compressedLength > 0 else {
             throw PlynxError.decodingError(NSError(domain: "GzipHelper", code: -1,
-                                                   userInfo: [NSLocalizedDescriptionKey: "Failed to decompress zlib data"]))
+                                                   userInfo: [NSLocalizedDescriptionKey: "Zlib data too short"]))
         }
         
-        decompressedData.count = result
-        return decompressedData
+        var multiplier = 10
+        while multiplier <= 100 {
+            let bufferSize = max(data.count * multiplier, 1024)
+            var decompressedData = Data(count: bufferSize)
+            
+            let result = decompressedData.withUnsafeMutableBytes { destBuffer -> Int in
+                guard let destPtr = destBuffer.bindMemory(to: UInt8.self).baseAddress else { return 0 }
+                
+                return data.withUnsafeBytes { sourceBuffer -> Int in
+                    guard let sourcePtr = sourceBuffer.bindMemory(to: UInt8.self).baseAddress else { return 0 }
+                    
+                    return compression_decode_buffer(
+                        destPtr,
+                        bufferSize,
+                        sourcePtr.advanced(by: compressedStart),
+                        compressedLength,
+                        nil,
+                        COMPRESSION_ZLIB
+                    )
+                }
+            }
+            
+            guard result > 0 else {
+                throw PlynxError.decodingError(NSError(domain: "GzipHelper", code: -1,
+                                                       userInfo: [NSLocalizedDescriptionKey: "Failed to decompress zlib data"]))
+            }
+            
+            if result < bufferSize {
+                decompressedData.count = result
+                return decompressedData
+            }
+            
+            multiplier *= 2
+        }
+        
+        throw PlynxError.decodingError(NSError(domain: "GzipHelper", code: -1,
+                                               userInfo: [NSLocalizedDescriptionKey: "Decompressed data exceeds maximum buffer size"]))
     }
     
     /// Decompress gzip data
     private static func decompressGzip(_ data: Data) throws -> Data {
-        let decompressedSize = data.count * 10
-        var decompressedData = Data(count: decompressedSize)
-        
-        let result = decompressedData.withUnsafeMutableBytes { destBuffer -> Int in
-            let destPtr = destBuffer.bindMemory(to: UInt8.self).baseAddress!
-            
-            return data.withUnsafeBytes { sourceBuffer -> Int in
-                let sourcePtr = sourceBuffer.bindMemory(to: UInt8.self).baseAddress!
-                
-                // Skip gzip header (minimum 10 bytes)
-                let headerSize = parseGzipHeaderSize(data)
-                guard headerSize < data.count else { return 0 }
-                
-                let decodedSize = compression_decode_buffer(
-                    destPtr,
-                    decompressedSize,
-                    sourcePtr.advanced(by: headerSize),
-                    data.count - headerSize - 8, // Subtract header and trailer
-                    nil,
-                    COMPRESSION_ZLIB
-                )
-                
-                
-                return decodedSize
-            }
-        }
-        
-        guard result > 0 else {
+        let headerSize = parseGzipHeaderSize(data)
+        guard headerSize < data.count else {
             throw PlynxError.decodingError(NSError(domain: "GzipHelper", code: -1,
-                                                   userInfo: [NSLocalizedDescriptionKey: "Failed to decompress gzip data"]))
+                                                   userInfo: [NSLocalizedDescriptionKey: "Invalid gzip header"]))
         }
         
-        decompressedData.count = result
-        return decompressedData
+        var multiplier = 10
+        while multiplier <= 100 {
+            let bufferSize = max(data.count * multiplier, 1024)
+            var decompressedData = Data(count: bufferSize)
+            
+            let result = decompressedData.withUnsafeMutableBytes { destBuffer -> Int in
+                guard let destPtr = destBuffer.bindMemory(to: UInt8.self).baseAddress else { return 0 }
+                
+                return data.withUnsafeBytes { sourceBuffer -> Int in
+                    guard let sourcePtr = sourceBuffer.bindMemory(to: UInt8.self).baseAddress else { return 0 }
+                    
+                    return compression_decode_buffer(
+                        destPtr,
+                        bufferSize,
+                        sourcePtr.advanced(by: headerSize),
+                        data.count - headerSize - 8,
+                        nil,
+                        COMPRESSION_ZLIB
+                    )
+                }
+            }
+            
+            guard result > 0 else {
+                throw PlynxError.decodingError(NSError(domain: "GzipHelper", code: -1,
+                                                       userInfo: [NSLocalizedDescriptionKey: "Failed to decompress gzip data"]))
+            }
+            
+            if result < bufferSize {
+                decompressedData.count = result
+                return decompressedData
+            }
+            
+            multiplier *= 2
+        }
+        
+        throw PlynxError.decodingError(NSError(domain: "GzipHelper", code: -1,
+                                               userInfo: [NSLocalizedDescriptionKey: "Decompressed data exceeds maximum buffer size"]))
     }
     
     /// Parse gzip header size (variable due to optional fields)

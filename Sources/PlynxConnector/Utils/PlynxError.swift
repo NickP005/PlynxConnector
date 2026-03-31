@@ -52,30 +52,39 @@ public enum PlynxError: Error, LocalizedError, Sendable {
         switch self {
         case .connectionFailed(let underlying):
             if let underlying = underlying {
-                return "Failed to connect: \(underlying.localizedDescription)"
+                return "Connection failed: \(underlying.localizedDescription)"
             }
-            return "Failed to connect to server"
+            return "Unable to reach the server"
             
         case .connectionClosed:
-            return "Connection was closed unexpectedly"
+            return "Connection lost"
             
         case .authenticationFailed(let code):
-            return "Authentication failed: \(code.description)"
+            switch code {
+            case .userNotRegistered:
+                return "Account not found"
+            case .invalidToken, .userNotAuthenticated:
+                return "Invalid credentials"
+            case .userAlreadyRegistered:
+                return "An account with this email already exists"
+            default:
+                return "Authentication failed (\(code.rawValue))"
+            }
             
         case .serverError(let code):
-            return "Server error: \(code.description)"
+            return "Server error (\(code.rawValue))"
             
         case .timeout:
             return "Request timed out"
             
-        case .encodingError(let error):
-            return "Failed to encode message: \(error.localizedDescription)"
+        case .encodingError:
+            return "Failed to send data"
             
-        case .decodingError(let error):
-            return "Failed to decode response: \(error.localizedDescription)"
+        case .decodingError:
+            return "Failed to load project data. The server response could not be read. Some projects may use unsupported features."
             
         case .invalidResponse:
-            return "Invalid response from server"
+            return "Unexpected server response"
             
         case .notConnected:
             return "Not connected to server"
@@ -84,13 +93,13 @@ public enum PlynxError: Error, LocalizedError, Sendable {
             return "Not authenticated"
             
         case .cancelled:
-            return "Operation was cancelled"
+            return "Operation cancelled"
             
-        case .tlsError(let message):
-            return "TLS error: \(message)"
+        case .tlsError:
+            return "Secure connection failed"
             
         case .unexpectedResponse:
-            return "Unexpected response from server"
+            return "Unexpected server response"
         }
     }
 }

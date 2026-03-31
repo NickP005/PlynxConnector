@@ -58,8 +58,8 @@ public enum GraphDataParser {
     private static func readInt32(_ data: Data, at offset: inout Int) -> Int32 {
         guard offset + 4 <= data.count else { return 0 }
         let value = data.withUnsafeBytes { buffer in
-            let ptr = buffer.baseAddress!.advanced(by: offset)
-            return Int32(bigEndian: ptr.loadUnaligned(as: Int32.self))
+            guard let base = buffer.baseAddress else { return Int32(0) }
+            return Int32(bigEndian: base.advanced(by: offset).loadUnaligned(as: Int32.self))
         }
         offset += 4
         return value
@@ -68,8 +68,8 @@ public enum GraphDataParser {
     private static func readInt64(_ data: Data, at offset: inout Int) -> Int64 {
         guard offset + 8 <= data.count else { return 0 }
         let value = data.withUnsafeBytes { buffer in
-            let ptr = buffer.baseAddress!.advanced(by: offset)
-            return Int64(bigEndian: ptr.loadUnaligned(as: Int64.self))
+            guard let base = buffer.baseAddress else { return Int64(0) }
+            return Int64(bigEndian: base.advanced(by: offset).loadUnaligned(as: Int64.self))
         }
         offset += 8
         return value
@@ -78,8 +78,8 @@ public enum GraphDataParser {
     private static func readFloat64(_ data: Data, at offset: inout Int) -> Double {
         guard offset + 8 <= data.count else { return 0 }
         let bits = data.withUnsafeBytes { buffer in
-            let ptr = buffer.baseAddress!.advanced(by: offset)
-            return UInt64(bigEndian: ptr.loadUnaligned(as: UInt64.self))
+            guard let base = buffer.baseAddress else { return UInt64(0) }
+            return UInt64(bigEndian: base.advanced(by: offset).loadUnaligned(as: UInt64.self))
         }
         offset += 8
         return Double(bitPattern: bits)

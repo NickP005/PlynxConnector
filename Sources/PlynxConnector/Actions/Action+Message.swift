@@ -229,7 +229,7 @@ extension Action {
             return BlynkMessage(command: .refreshShareToken, messageId: messageId, body: "\(dashId)")
 
         case .getEnhancedGraphData(let dashId, let widgetId, let targetId, let period, let page):
-            let dashPart = targetId != nil ? "\(dashId)-\(targetId!)" : "\(dashId)"
+            let dashPart = targetId.map { "\(dashId)-\($0)" } ?? "\(dashId)"
             var bodyParts = [dashPart, "\(widgetId)", period.rawValue]
             if let page = page {
                 bodyParts.append("\(page)")
