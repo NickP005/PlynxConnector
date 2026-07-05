@@ -87,10 +87,12 @@ public struct DashBoard: Codable, Sendable, Identifiable, Hashable {
         createdAt = try container.decodeIfPresent(Int64.self, forKey: .createdAt)
         updatedAt = try container.decodeIfPresent(Int64.self, forKey: .updatedAt)
         
-        widgets = DashBoard.decodeLossyArray(Widget.self, from: container, forKey: .widgets)
-        devices = DashBoard.decodeLossyArray(Device.self, from: container, forKey: .devices)
-        
-        tags = try container.decodeIfPresent([Tag].self, forKey: .tags)
+        let warnings = DecodeWarnings.from(decoder)
+        widgets = DashBoard.decodeLossyArray(Widget.self, from: container, forKey: .widgets, warnings: warnings)
+        devices = DashBoard.decodeLossyArray(Device.self, from: container, forKey: .devices, warnings: warnings)
+
+        // Lossy: un tag malformato non deve far cadere l'intera dashboard
+        tags = DashBoard.decodeLossyArray(Tag.self, from: container, forKey: .tags, warnings: warnings)
         theme = try? container.decodeIfPresent(Theme.self, forKey: .theme)
         keepScreenOn = try container.decodeIfPresent(Bool.self, forKey: .keepScreenOn)
         isAppConnectedOn = try container.decodeIfPresent(Bool.self, forKey: .isAppConnectedOn)
@@ -102,15 +104,17 @@ public struct DashBoard: Codable, Sendable, Identifiable, Hashable {
         isDefaultColor = try container.decodeIfPresent(Bool.self, forKey: .isDefaultColor)
     }
     
-    private static func decodeLossyArray<T: Decodable>(_ type: T.Type, from container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys) -> [T]? {
+    private static func decodeLossyArray<T: Decodable>(_ type: T.Type, from container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys, warnings: DecodeWarnings?) -> [T]? {
         guard var unkeyedContainer = try? container.nestedUnkeyedContainer(forKey: key) else {
             return nil
         }
         var result: [T] = []
         while !unkeyedContainer.isAtEnd {
-            if let element = try? unkeyedContainer.decode(T.self) {
-                result.append(element)
-            } else {
+            let index = unkeyedContainer.currentIndex
+            do {
+                result.append(try unkeyedContainer.decode(T.self))
+            } catch {
+                warnings?.record("Dropped \(T.self) at \(key.stringValue)[\(index)]: \(error)")
                 _ = try? unkeyedContainer.decode(AnyCodable.self)
             }
         }
@@ -149,11 +153,14 @@ public struct Profile: Codable, Sendable {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         
         if var unkeyedContainer = try? container.nestedUnkeyedContainer(forKey: .dashBoards) {
+            let warnings = DecodeWarnings.from(decoder)
             var boards: [DashBoard] = []
             while !unkeyedContainer.isAtEnd {
-                if let board = try? unkeyedContainer.decode(DashBoard.self) {
-                    boards.append(board)
-                } else {
+                let index = unkeyedContainer.currentIndex
+                do {
+                    boards.append(try unkeyedContainer.decode(DashBoard.self))
+                } catch {
+                    warnings?.record("Dropped DashBoard at dashBoards[\(index)]: \(error)")
                     _ = try? unkeyedContainer.decode(AnyCodable.self)
                 }
             }

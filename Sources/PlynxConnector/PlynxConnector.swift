@@ -11,7 +11,15 @@ public actor Connector {
     
     private var messageId: UInt16 = 0
     private var pendingResponses: [UInt16: CheckedContinuation<Event, Error>] = [:]
-    private var pendingDataResponses: [UInt16: CheckedContinuation<BlynkMessage, Error>] = [:]
+    private var pendingDataResponses: [UInt16: PendingDataRequest] = [:]
+
+    /// Pending data request: keeps the expected command so that unrelated
+    /// frames with a colliding messageId (e.g. forwarded HARDWARE pushes)
+    /// don't get returned as the response.
+    private struct PendingDataRequest {
+        let expectedCommand: CommandCode
+        let continuation: CheckedContinuation<BlynkMessage, Error>
+    }
     
     private(set) public var authenticated: Bool = false
     
@@ -199,7 +207,12 @@ public actor Connector {
             continuation.resume(throwing: PlynxError.connectionClosed)
         }
         pendingResponses.removeAll()
-        
+
+        for (_, pending) in pendingDataResponses {
+            pending.continuation.resume(throwing: PlynxError.connectionClosed)
+        }
+        pendingDataResponses.removeAll()
+
         eventsContinuation?.yield(.disconnected(nil))
         
         if wasConnected || wasAuthenticated {
@@ -247,11 +260,15 @@ public actor Connector {
         pendingResponses[msgId] = continuation
     }
     
-    private func registerPendingDataResponse(msgId: UInt16, continuation: CheckedContinuation<BlynkMessage, Error>) {
-        pendingDataResponses[msgId] = continuation
+    func registerPendingDataResponse(msgId: UInt16, expecting expectedCommand: CommandCode, continuation: CheckedContinuation<BlynkMessage, Error>) {
+        pendingDataResponses[msgId] = PendingDataRequest(expectedCommand: expectedCommand, continuation: continuation)
     }
-    
-    private func sendForData(_ action: Action) async throws -> BlynkMessage {
+
+    var pendingDataResponseCount: Int {
+        pendingDataResponses.count
+    }
+
+    private func sendForData(_ action: Action, expecting expectedCommand: CommandCode) async throws -> BlynkMessage {
         guard let socket = socket else {
             throw PlynxError.notConnected
         }
@@ -271,7 +288,7 @@ public actor Connector {
         return try await withTimeout(seconds: responseTimeout) {
             try await withCheckedThrowingContinuation { (continuation: CheckedContinuation<BlynkMessage, Error>) in
                 Task {
-                    await self.registerPendingDataResponse(msgId: msgId, continuation: continuation)
+                    await self.registerPendingDataResponse(msgId: msgId, expecting: expectedCommand, continuation: continuation)
                 }
             }
         }
@@ -311,8 +328,8 @@ public actor Connector {
         }
         pendingResponses.removeAll()
         
-        for (_, continuation) in pendingDataResponses {
-            continuation.resume(throwing: PlynxError.connectionClosed)
+        for (_, pending) in pendingDataResponses {
+            pending.continuation.resume(throwing: PlynxError.connectionClosed)
         }
         pendingDataResponses.removeAll()
         
@@ -423,21 +440,33 @@ public actor Connector {
         reconnectTask = nil
     }
     
-    private func handleMessage(_ parsedMessage: ParsedMessage) {
+    func handleMessage(_ parsedMessage: ParsedMessage) {
         if case .response(let response) = parsedMessage {
             if let continuation = pendingResponses.removeValue(forKey: response.messageId) {
                 let event = Event.response(messageId: response.messageId, code: response.code)
                 continuation.resume(returning: event)
                 return
             }
-        }
-        
-        if case .command(let message) = parsedMessage {
-            if let continuation = pendingDataResponses.removeValue(forKey: message.messageId) {
-                continuation.resume(returning: message)
+
+            // Una .response per una richiesta dati pendente è un errore del server
+            // (es. noData per loadProfile): fail fast invece del timeout generico
+            if let pending = pendingDataResponses.removeValue(forKey: response.messageId) {
+                let error: PlynxError = response.code == .ok ? .unexpectedResponse : .serverError(response.code)
+                pending.continuation.resume(throwing: error)
                 return
             }
-            
+        }
+
+        if case .command(let message) = parsedMessage {
+            if let pending = pendingDataResponses[message.messageId],
+               pending.expectedCommand == message.command {
+                pendingDataResponses.removeValue(forKey: message.messageId)
+                pending.continuation.resume(returning: message)
+                return
+            }
+            // Comando diverso da quello atteso con stesso msgId (es. push HARDWARE
+            // inoltrato dal server): lascialo cadere nel normale event path
+
             if message.command == .getShareToken || message.command == .refreshShareToken {
                 if let continuation = pendingResponses.removeValue(forKey: message.messageId) {
                     let token = message.body
@@ -569,24 +598,33 @@ public actor Connector {
     
     // MARK: - Convenience Methods
     
+    /// Warnings raised during the last `loadProfile()` decode
+    /// (widgets/devices/dashboards or fields dropped by lossy decoding).
+    private(set) public var lastProfileDecodeWarnings: [String] = []
+
     public func loadProfile() async throws -> Profile {
-        let response = try await sendForData(.loadProfile(dashId: nil, published: false))
-        
+        let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
+
         guard response.command == .loadProfileGzipped else {
             throw PlynxError.unexpectedResponse
         }
-        
+
         guard let rawData = response.rawData, !rawData.isEmpty else {
+            lastProfileDecodeWarnings = []
             return Profile()
         }
-        
+
         let decompressedData: Data
         do {
             decompressedData = try GzipHelper.decompress(rawData)
         } catch {
             throw PlynxError.decodingError(error)
         }
-        
+
+        let warnings = DecodeWarnings()
+        decoder.userInfo[DecodeWarnings.userInfoKey] = warnings
+        defer { lastProfileDecodeWarnings = warnings.warnings }
+
         do {
             return try decoder.decode(Profile.self, from: decompressedData)
         } catch {
@@ -632,8 +670,8 @@ public actor Connector {
             page: page
         )
         
-        let response = try await sendForData(action)
-        
+        let response = try await sendForData(action, expecting: .getEnhancedGraphData)
+
         if response.command == .getEnhancedGraphData {
             guard let rawData = response.rawData, !rawData.isEmpty else {
                 return nil

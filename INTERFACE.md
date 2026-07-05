@@ -15,6 +15,7 @@ public actor PlynxConnector {
     var responseTimeout: TimeInterval
     var pingInterval: TimeInterval
     var events: AsyncStream<Event>
+    var lastProfileDecodeWarnings: [String] { get }   // warnings from last loadProfile() lossy decode
     
     // MARK: - Callbacks
     var onVirtualPinUpdate: ((Int, Int, Int, [String]) -> Void)?      // (dashId, deviceId, pin, values)
@@ -39,6 +40,24 @@ public actor PlynxConnector {
     func deactivateAllDashboards() async throws -> Event
     func writeVirtualPin(dashId: Int, deviceId: Int, pin: Int, value: String) async throws -> Event
     func loadProfile() async throws -> Profile
+}
+```
+
+---
+
+## DecodeWarnings
+
+```swift
+// Thread-safe collector for non-fatal decode warnings (dropped widgets/devices/dashboards/fields).
+// Attach to JSONDecoder.userInfo via DecodeWarnings.userInfoKey to collect them during custom decodes.
+public final class DecodeWarnings {
+    static let userInfoKey: CodingUserInfoKey
+    init()
+    var warnings: [String] { get }
+    var count: Int { get }
+    func record(_ message: String)
+    func reset()
+    static func from(_ decoder: Decoder) -> DecodeWarnings?
 }
 ```
 

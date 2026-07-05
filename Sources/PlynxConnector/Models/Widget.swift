@@ -293,10 +293,21 @@ public struct Widget: Codable, Sendable, Identifiable {
         case rules
     }
     
+    /// Lossy decodeIfPresent: un campo annidato malformato diventa nil
+    /// (con warning) invece di far cadere l'intero widget.
+    private static func lossyDecodeIfPresent<T: Decodable>(_ type: T.Type, from container: KeyedDecodingContainer<CodingKeys>, forKey key: CodingKeys, decoder: Decoder, widgetId: Int) -> T? {
+        do {
+            return try container.decodeIfPresent(T.self, forKey: key)
+        } catch {
+            DecodeWarnings.from(decoder)?.record("Widget \(widgetId): dropped field '\(key.stringValue)': \(error)")
+            return nil
+        }
+    }
+
     // Custom decoder to handle both "dataStreams" and "pins" keys
     public init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        
+
         id = try container.decode(Int.self, forKey: .id)
         type = try container.decodeIfPresent(WidgetType.self, forKey: .type)
         x = try container.decodeIfPresent(Int.self, forKey: .x)
@@ -318,8 +329,8 @@ public struct Widget: Codable, Sendable, Identifiable {
         onLabel = try container.decodeIfPresent(String.self, forKey: .onLabel)
         offLabel = try container.decodeIfPresent(String.self, forKey: .offLabel)
         pushMode = try container.decodeIfPresent(Bool.self, forKey: .pushMode)
-        onButtonState = try container.decodeIfPresent(ButtonState.self, forKey: .onButtonState)
-        offButtonState = try container.decodeIfPresent(ButtonState.self, forKey: .offButtonState)
+        onButtonState = Widget.lossyDecodeIfPresent(ButtonState.self, from: container, forKey: .onButtonState, decoder: decoder, widgetId: id)
+        offButtonState = Widget.lossyDecodeIfPresent(ButtonState.self, from: container, forKey: .offButtonState, decoder: decoder, widgetId: id)
         sendOnReleaseOn = try container.decodeIfPresent(Bool.self, forKey: .sendOnReleaseOn)
         step = try container.decodeIfPresent(Double.self, forKey: .step)
         isArrowsOn = try container.decodeIfPresent(Bool.self, forKey: .isArrowsOn)
@@ -336,16 +347,16 @@ public struct Widget: Codable, Sendable, Identifiable {
         maximumFractionDigits = try container.decodeIfPresent(Int.self, forKey: .maximumFractionDigits)
         
         // Try "dataStreams" first (for Superchart), then "pins" (for MultiPinWidget)
-        if let streams = try container.decodeIfPresent([DataStream].self, forKey: .dataStreams) {
+        if let streams = Widget.lossyDecodeIfPresent([DataStream].self, from: container, forKey: .dataStreams, decoder: decoder, widgetId: id) {
             dataStreams = streams
-        } else if let pins = try container.decodeIfPresent([DataStream].self, forKey: .pins) {
+        } else if let pins = Widget.lossyDecodeIfPresent([DataStream].self, from: container, forKey: .pins, decoder: decoder, widgetId: id) {
             dataStreams = pins
         } else {
             dataStreams = nil
         }
-        
+
         // SuperChart specific
-        period = try container.decodeIfPresent(GraphPeriod.self, forKey: .period)
+        period = Widget.lossyDecodeIfPresent(GraphPeriod.self, from: container, forKey: .period, decoder: decoder, widgetId: id)
         showLegend = try container.decodeIfPresent(Bool.self, forKey: .showLegend)
         
         labels = try container.decodeIfPresent([String].self, forKey: .labels)
@@ -369,16 +380,16 @@ public struct Widget: Codable, Sendable, Identifiable {
         isSatelliteMode = try container.decodeIfPresent(Bool.self, forKey: .isSatelliteMode)
         labelFormat = try container.decodeIfPresent(String.self, forKey: .labelFormat)
         radius = try container.decodeIfPresent(Int.self, forKey: .radius)
-        templates = try container.decodeIfPresent([TileTemplate].self, forKey: .templates)
-        tiles = try container.decodeIfPresent([Tile].self, forKey: .tiles)
-        reports = try container.decodeIfPresent([Report].self, forKey: .reports)
-        tabs = try container.decodeIfPresent([TabItem].self, forKey: .tabs)
+        templates = Widget.lossyDecodeIfPresent([TileTemplate].self, from: container, forKey: .templates, decoder: decoder, widgetId: id)
+        tiles = Widget.lossyDecodeIfPresent([Tile].self, from: container, forKey: .tiles, decoder: decoder, widgetId: id)
+        reports = Widget.lossyDecodeIfPresent([Report].self, from: container, forKey: .reports, decoder: decoder, widgetId: id)
+        tabs = Widget.lossyDecodeIfPresent([TabItem].self, from: container, forKey: .tabs, decoder: decoder, widgetId: id)
         isClickableRows = try container.decodeIfPresent(Bool.self, forKey: .isClickableRows)
         isReoderingAllowed = try container.decodeIfPresent(Bool.self, forKey: .isReoderingAllowed)
         currentRowIndex = try container.decodeIfPresent(Int.self, forKey: .currentRowIndex)
-        rows = try container.decodeIfPresent([TableRow].self, forKey: .rows)
-        columns = try container.decodeIfPresent([TableColumn].self, forKey: .columns)
-        rules = try container.decodeIfPresent([EventorRule].self, forKey: .rules)
+        rows = Widget.lossyDecodeIfPresent([TableRow].self, from: container, forKey: .rows, decoder: decoder, widgetId: id)
+        columns = Widget.lossyDecodeIfPresent([TableColumn].self, from: container, forKey: .columns, decoder: decoder, widgetId: id)
+        rules = Widget.lossyDecodeIfPresent([EventorRule].self, from: container, forKey: .rules, decoder: decoder, widgetId: id)
     }
     
     // Custom encoder to match the decoder
