@@ -44,7 +44,7 @@ char pass[] = "YOUR_WIFI_PASSWORD";
 
 void setup() {
   Serial.begin(115200);
-  Blynk.begin(auth, ssid, pass, "plynx.cc", 8080);
+  Blynk.begin(auth, ssid, pass, "yes.plynx.cc", 8080);
 }
 
 void loop() {
