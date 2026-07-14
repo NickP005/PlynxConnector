@@ -40,6 +40,11 @@ public enum Action: Sendable {
     case getDevice(dashId: Int, deviceId: Int)
     case deleteDeviceData(dashId: Int, deviceId: Int, pins: [PinInfo]?)
 
+    /// Plynx linked devices: collega nel progetto target una scheda di un
+    /// altro progetto (alias senza token); scollega un alias dal progetto.
+    case linkDevice(targetDashId: Int, ownerDashId: Int, ownerDeviceId: Int)
+    case unlinkDevice(dashId: Int, deviceId: Int)
+
     // MARK: - Tag Management
 
     case createTag(dashId: Int, tag: Tag)

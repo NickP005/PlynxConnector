@@ -342,6 +342,14 @@ extension Action {
 
         case .getServerInfo:
             return BlynkMessage(command: .getServerInfo, messageId: messageId)
+
+        case .linkDevice(let targetDashId, let ownerDashId, let ownerDeviceId):
+            return BlynkMessage(command: .linkDevice, messageId: messageId,
+                              bodyParts: ["\(targetDashId)", "\(ownerDashId)", "\(ownerDeviceId)"])
+
+        case .unlinkDevice(let dashId, let deviceId):
+            return BlynkMessage(command: .unlinkDevice, messageId: messageId,
+                              bodyParts: ["\(dashId)", "\(deviceId)"])
         }
     }
 }

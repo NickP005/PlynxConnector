@@ -127,6 +127,9 @@ public enum CommandCode: UInt8, Sendable {
     /// Capability handshake (Plynx): version + optional feature list.
     /// Legacy servers stay silent on this command (timeout = legacy).
     case getServerInfo = 96
+    /// Plynx linked devices: alias di una scheda di un altro progetto
+    case linkDevice = 97
+    case unlinkDevice = 98
     
     /// Human-readable name for debugging
     public var name: String {
@@ -211,6 +214,8 @@ public enum CommandCode: UInt8, Sendable {
         case .resetPassword: return "RESET_PASSWORD"
         case .deleteAccount: return "DELETE_ACCOUNT"
         case .getServerInfo: return "GET_SERVER_INFO"
+        case .linkDevice: return "LINK_DEVICE"
+        case .unlinkDevice: return "UNLINK_DEVICE"
         }
     }
 }

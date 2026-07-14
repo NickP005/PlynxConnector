@@ -59,7 +59,17 @@ public struct Device: Codable, Sendable, Identifiable {
     
     /// Whether using a user-uploaded icon
     public var isUserIcon: Bool?
-    
+
+    /// Plynx linked devices: se valorizzati (>= 0), questo device è un alias
+    /// della scheda (linkedToDashId, linkedToDeviceId) di un altro progetto.
+    public var linkedToDashId: Int?
+    public var linkedToDeviceId: Int?
+
+    /// True se il device è un alias di una scheda di un altro progetto.
+    public var isLinked: Bool {
+        (linkedToDashId ?? -1) >= 0
+    }
+
     public init(
         id: Int,
         name: String? = nil,

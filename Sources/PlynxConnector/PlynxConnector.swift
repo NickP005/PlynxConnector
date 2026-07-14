@@ -618,6 +618,23 @@ public actor Connector {
         }
     }
 
+    /// Plynx linked devices: collega la scheda (ownerDashId, ownerDeviceId)
+    /// nel progetto target. Ritorna il device alias creato dal server.
+    public func linkDevice(targetDashId: Int, ownerDashId: Int, ownerDeviceId: Int) async throws -> Device {
+        let response = try await sendForData(
+            .linkDevice(targetDashId: targetDashId, ownerDashId: ownerDashId, ownerDeviceId: ownerDeviceId),
+            expecting: .linkDevice)
+        guard response.command == .linkDevice,
+              let data = response.body.data(using: .utf8) else {
+            throw PlynxError.unexpectedResponse
+        }
+        do {
+            return try decoder.decode(Device.self, from: data)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
     public func loadProfile() async throws -> Profile {
         let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
 
