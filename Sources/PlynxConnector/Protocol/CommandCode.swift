@@ -124,6 +124,9 @@ public enum CommandCode: UInt8, Sendable {
     
     // MARK: - Account Management
     case deleteAccount = 95
+    /// Capability handshake (Plynx): version + optional feature list.
+    /// Legacy servers stay silent on this command (timeout = legacy).
+    case getServerInfo = 96
     
     /// Human-readable name for debugging
     public var name: String {
@@ -207,6 +210,7 @@ public enum CommandCode: UInt8, Sendable {
         case .exportReport: return "EXPORT_REPORT"
         case .resetPassword: return "RESET_PASSWORD"
         case .deleteAccount: return "DELETE_ACCOUNT"
+        case .getServerInfo: return "GET_SERVER_INFO"
         }
     }
 }

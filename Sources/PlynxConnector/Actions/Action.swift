@@ -123,6 +123,9 @@ public enum Action: Sendable {
     // MARK: - Utility
 
     case ping
+
+    /// Capability handshake: chiede versione e feature opzionali del server
+    case getServerInfo
 }
 
 public struct PinInfo: Sendable {

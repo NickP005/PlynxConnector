@@ -602,6 +602,22 @@ public actor Connector {
     /// (widgets/devices/dashboards or fields dropped by lossy decoding).
     private(set) public var lastProfileDecodeWarnings: [String] = []
 
+    /// Capability handshake: versione e feature opzionali del server.
+    /// Sui server legacy il comando cade nel vuoto: il timeout va
+    /// interpretato dal chiamante come "server legacy".
+    public func getServerInfo() async throws -> ServerInfo {
+        let response = try await sendForData(.getServerInfo, expecting: .getServerInfo)
+        guard response.command == .getServerInfo,
+              let data = response.body.data(using: .utf8) else {
+            throw PlynxError.unexpectedResponse
+        }
+        do {
+            return try JSONDecoder().decode(ServerInfo.self, from: data)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
     public func loadProfile() async throws -> Profile {
         let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
 

@@ -339,6 +339,9 @@ extension Action {
 
         case .ping:
             return BlynkMessage(command: .ping, messageId: messageId)
+
+        case .getServerInfo:
+            return BlynkMessage(command: .getServerInfo, messageId: messageId)
         }
     }
 }
