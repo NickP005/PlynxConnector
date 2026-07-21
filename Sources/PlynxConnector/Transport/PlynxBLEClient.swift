@@ -86,6 +86,12 @@ public final class PlynxBLEClient: NSObject, @unchecked Sendable {
     /// The caller asked to scan; retried automatically once the central powers on.
     private var wantsScan = false
 
+    /// Bumped on every connect/disconnect so a stale connect-timeout closure
+    /// (CoreBluetooth has no built-in connect timeout) knows it's superseded.
+    private var connectGeneration = 0
+    /// How long to wait for LOGIN to complete before failing a connect cleanly.
+    private let connectTimeout: TimeInterval = 12
+
     public override init() {
         var cont: AsyncStream<BLEClientEvent>.Continuation!
         events = AsyncStream(bufferingPolicy: .unbounded) { cont = $0 }
@@ -113,16 +119,24 @@ public final class PlynxBLEClient: NSObject, @unchecked Sendable {
         }
     }
 
-    /// Connect to a previously discovered peripheral and log in with its auth token.
+    /// Connect to a known peripheral (by identifier) and log in with its auth
+    /// token. Works after relaunch without a rescan via retrievePeripherals.
     public func connect(deviceId: UUID, token: String) {
         queue.async { [weak self] in
             guard let self else { return }
             self.wantsScan = false
             if self.central.isScanning { self.central.stopScan() }
+            // Chiudi un'eventuale connessione precedente a un peripheral diverso:
+            // altrimenti resterebbe viva e sporcherebbe il parser condiviso.
+            if let old = self.peripheral, old.identifier != deviceId {
+                self.central.cancelPeripheralConnection(old)
+                self.rxChar = nil
+                self.txChar = nil
+            }
             self.pendingToken = token
             self.loggedIn = false
             let known = self.central.retrievePeripherals(withIdentifiers: [deviceId])
-            guard let target = known.first ?? self.discovered[deviceId].flatMap({ _ in self.peripheral }) else {
+            guard let target = known.first else {
                 self.emit(.stateChanged(.failed("Device not found. Scan again.")))
                 return
             }
@@ -130,12 +144,29 @@ public final class PlynxBLEClient: NSObject, @unchecked Sendable {
             target.delegate = self
             self.emit(.stateChanged(.connecting))
             self.central.connect(target, options: nil)
+
+            // CoreBluetooth non ha un timeout di connessione: se il device è
+            // spento o fuori portata resterebbe "connecting" per sempre e (lato
+            // app) bloccherebbe le scritture su una rotta morta. Diamo un limite
+            // e poi falliamo pulito, così la UI lo mostra e i widget tornano a
+            // passare dal server.
+            self.connectGeneration &+= 1
+            let generation = self.connectGeneration
+            self.queue.asyncAfter(deadline: .now() + self.connectTimeout) { [weak self] in
+                guard let self, self.connectGeneration == generation, !self.loggedIn else { return }
+                self.central.cancelPeripheralConnection(target)
+                self.peripheral = nil
+                self.rxChar = nil
+                self.txChar = nil
+                self.emit(.stateChanged(.failed("Bluetooth connection timed out")))
+            }
         }
     }
 
     public func disconnect() {
         queue.async { [weak self] in
             guard let self else { return }
+            self.connectGeneration &+= 1   // invalida un eventuale timeout pendente
             self.parser.reset()
             self.outbound.removeAll()
             self.loggedIn = false
@@ -213,9 +244,12 @@ public final class PlynxBLEClient: NSObject, @unchecked Sendable {
     private func handle(_ parsed: ParsedMessage) {
         switch parsed {
         case .response(let response):
-            if response.messageId == loginMsgId {
+            // loginMsgId=0 = login già risolto: evita che un RESPONSE hardware
+            // col msgId riavvolto (dopo ~65k scritture) sia scambiato per login.
+            if loginMsgId != 0, response.messageId == loginMsgId {
                 let ok = response.code.isSuccess
                 loggedIn = ok
+                loginMsgId = 0
                 emit(.loginResult(success: ok))
                 emit(.stateChanged(ok ? .connected : .failed("Invalid auth token")))
             }
@@ -317,6 +351,7 @@ extension PlynxBLEClient: CBCentralManagerDelegate {
     }
 
     public func centralManager(_ central: CBCentralManager, didConnect peripheral: CBPeripheral) {
+        guard peripheral == self.peripheral else { return }
         parser.reset()
         outbound.removeAll()
         awaitingWriteResponse = false
@@ -325,11 +360,16 @@ extension PlynxBLEClient: CBCentralManagerDelegate {
 
     public func centralManager(_ central: CBCentralManager,
                                didFailToConnect peripheral: CBPeripheral, error: Error?) {
+        guard peripheral == self.peripheral else { return }
         emit(.stateChanged(.failed(error?.localizedDescription ?? "Connection failed")))
     }
 
     public func centralManager(_ central: CBCentralManager,
                                didDisconnectPeripheral peripheral: CBPeripheral, error: Error?) {
+        // Ignora il disconnect di un peripheral vecchio/cancellato: solo quello
+        // corrente cambia lo stato della sessione.
+        guard peripheral == self.peripheral else { return }
+        connectGeneration &+= 1   // invalida un eventuale timeout pendente
         loggedIn = false
         rxChar = nil
         txChar = nil
@@ -341,6 +381,7 @@ extension PlynxBLEClient: CBCentralManagerDelegate {
 
 extension PlynxBLEClient: CBPeripheralDelegate {
     public func peripheral(_ peripheral: CBPeripheral, didDiscoverServices error: Error?) {
+        guard peripheral == self.peripheral else { return }
         guard let service = peripheral.services?.first(where: { $0.uuid == Self.serviceUUID }) else {
             emit(.stateChanged(.failed("Plynx service not found on device")))
             return
@@ -350,6 +391,7 @@ extension PlynxBLEClient: CBPeripheralDelegate {
 
     public func peripheral(_ peripheral: CBPeripheral,
                            didDiscoverCharacteristicsFor service: CBService, error: Error?) {
+        guard peripheral == self.peripheral else { return }
         for char in service.characteristics ?? [] {
             if char.uuid == Self.rxUUID { rxChar = char }
             if char.uuid == Self.txUUID { txChar = char }
@@ -363,6 +405,7 @@ extension PlynxBLEClient: CBPeripheralDelegate {
 
     public func peripheral(_ peripheral: CBPeripheral,
                            didUpdateNotificationStateFor characteristic: CBCharacteristic, error: Error?) {
+        guard peripheral == self.peripheral else { return }
         guard characteristic.uuid == Self.txUUID, characteristic.isNotifying else { return }
         // Notifications live and RX is ready: the device is silent, so we log in first.
         sendLogin()
@@ -370,6 +413,7 @@ extension PlynxBLEClient: CBPeripheralDelegate {
 
     public func peripheral(_ peripheral: CBPeripheral,
                            didUpdateValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard peripheral == self.peripheral else { return }
         guard characteristic.uuid == Self.txUUID, let value = characteristic.value else { return }
         parser.append(value)
         for parsed in parser.parseAll() {
@@ -379,6 +423,7 @@ extension PlynxBLEClient: CBPeripheralDelegate {
 
     public func peripheral(_ peripheral: CBPeripheral,
                            didWriteValueFor characteristic: CBCharacteristic, error: Error?) {
+        guard peripheral == self.peripheral else { return }
         awaitingWriteResponse = false
         pump()
     }
