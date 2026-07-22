@@ -38,4 +38,10 @@ public struct ServerInfo: Sendable, Codable, Equatable {
     public var supportsPublishedProjects: Bool {
         caps.contains("publishedProjects")
     }
+
+    /// Il server supporta il catalogo pubblico (Slice 4): elencare un proprio
+    /// progetto pubblicato e sfogliare/cercare quelli altrui.
+    public var supportsPublicCatalog: Bool {
+        caps.contains("publicCatalog")
+    }
 }

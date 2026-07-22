@@ -716,6 +716,46 @@ public actor Connector {
         }
     }
 
+    // MARK: - Public catalog (scoperta progetti altrui, Slice 4)
+
+    /// Elenca (o rimuove) un proprio progetto pubblicato nel catalogo pubblico.
+    /// Denormalizza lo `username` autore + una `description` sulla card. Il
+    /// server verifica la proprietà: si può (dis)elencare solo un progetto che
+    /// si è pubblicato. Ritorna l'Event di conferma.
+    @discardableResult
+    public func setProjectPublic(publishedId: String, isPublic: Bool,
+                                 username: String, description: String) async throws -> Event {
+        try await send(.setProjectPublic(publishedId: publishedId, isPublic: isPublic,
+                                         username: username, description: description))
+    }
+
+    /// Sfoglia o cerca il catalogo pubblico. `query` nil/vuota = progetti più
+    /// recenti; valorizzata = ricerca per nome/autore/descrizione. Ritorna card
+    /// leggere (senza template): il progetto scelto si scarica poi per id con
+    /// `getPublishedProject(publishedId:)`.
+    public func listPublicProjects(query: String? = nil,
+                                   offset: Int = 0,
+                                   limit: Int = 30) async throws -> [PublicCatalogEntry] {
+        let response = try await sendForData(
+            .listPublicProjects(query: query, offset: offset, limit: limit),
+            expecting: .listPublicProjects)
+        guard response.command == .listPublicProjects,
+              let rawData = response.rawData, !rawData.isEmpty else {
+            throw PlynxError.unexpectedResponse
+        }
+        let decompressed: Data
+        do {
+            decompressed = try GzipHelper.decompress(rawData)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+        do {
+            return try decoder.decode([PublicCatalogEntry].self, from: decompressed)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
     public func loadProfile() async throws -> Profile {
         let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
 

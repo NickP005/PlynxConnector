@@ -107,6 +107,11 @@ public enum CommandCode: UInt8, Sendable {
     // Plynx: progetti pubblicati (entità persistente, ID stabile + versione)
     case publishProject = 99
     case getPublishedProject = 101
+    // Plynx public catalog (Slice 4): scoperta di progetti pubblicati altrui.
+    /// Elenca/rimuove un proprio progetto pubblicato dal catalogo pubblico.
+    case setProjectPublic = 102
+    /// Sfoglia/cerca il catalogo pubblico (query vuota = più recenti).
+    case listPublicProjects = 103
     
     // MARK: - Energy
     case getEnergy = 36
@@ -199,6 +204,8 @@ public enum CommandCode: UInt8, Sendable {
         case .getProjectByCloneCode: return "GET_PROJECT_BY_CLONE_CODE"
         case .publishProject: return "PUBLISH_PROJECT"
         case .getPublishedProject: return "GET_PUBLISHED_PROJECT"
+        case .setProjectPublic: return "SET_PROJECT_PUBLIC"
+        case .listPublicProjects: return "LIST_PUBLIC_PROJECTS"
         case .hardwareLogEvent: return "HARDWARE_LOG_EVENT"
         case .hardwareResendFromBluetooth: return "HARDWARE_RESEND_FROM_BLUETOOTH"
         case .logout: return "LOGOUT"

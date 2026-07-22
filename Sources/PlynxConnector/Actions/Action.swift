@@ -118,6 +118,11 @@ public enum Action: Sendable {
     case publishProject(dashId: Int)
     /// Scarica un progetto pubblicato dato il suo ID pubblico stabile.
     case getPublishedProject(publishedId: String)
+    /// Elenca/rimuove un proprio progetto pubblicato dal catalogo pubblico,
+    /// denormalizzando lo username autore e una descrizione sulla card.
+    case setProjectPublic(publishedId: String, isPublic: Bool, username: String, description: String)
+    /// Sfoglia/cerca il catalogo pubblico (query nil/vuota = più recenti).
+    case listPublicProjects(query: String?, offset: Int, limit: Int)
 
     // MARK: - Energy
 

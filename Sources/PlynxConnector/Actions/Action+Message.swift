@@ -329,6 +329,14 @@ extension Action {
         case .getPublishedProject(let publishedId):
             return BlynkMessage(command: .getPublishedProject, messageId: messageId, body: publishedId)
 
+        case .setProjectPublic(let publishedId, let isPublic, let username, let description):
+            return BlynkMessage(command: .setProjectPublic, messageId: messageId,
+                              bodyParts: [publishedId, isPublic ? "1" : "0", username, description])
+
+        case .listPublicProjects(let query, let offset, let limit):
+            return BlynkMessage(command: .listPublicProjects, messageId: messageId,
+                              bodyParts: ["\(offset)", "\(limit)", query ?? ""])
+
         case .getEnergy:
             return BlynkMessage(command: .getEnergy, messageId: messageId)
 
