@@ -104,6 +104,9 @@ public enum CommandCode: UInt8, Sendable {
     case getProjectByToken = 58
     case getCloneCode = 62
     case getProjectByCloneCode = 63
+    // Plynx: progetti pubblicati (entità persistente, ID stabile + versione)
+    case publishProject = 99
+    case getPublishedProject = 101
     
     // MARK: - Energy
     case getEnergy = 36
@@ -194,6 +197,8 @@ public enum CommandCode: UInt8, Sendable {
         case .deleteEnhancedGraphData: return "DELETE_ENHANCED_GRAPH_DATA"
         case .getCloneCode: return "GET_CLONE_CODE"
         case .getProjectByCloneCode: return "GET_PROJECT_BY_CLONE_CODE"
+        case .publishProject: return "PUBLISH_PROJECT"
+        case .getPublishedProject: return "GET_PUBLISHED_PROJECT"
         case .hardwareLogEvent: return "HARDWARE_LOG_EVENT"
         case .hardwareResendFromBluetooth: return "HARDWARE_RESEND_FROM_BLUETOOTH"
         case .logout: return "LOGOUT"

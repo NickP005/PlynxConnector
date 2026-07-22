@@ -323,6 +323,12 @@ extension Action {
         case .getProjectByToken(let token):
             return BlynkMessage(command: .getProjectByToken, messageId: messageId, body: token)
 
+        case .publishProject(let dashId):
+            return BlynkMessage(command: .publishProject, messageId: messageId, body: "\(dashId)")
+
+        case .getPublishedProject(let publishedId):
+            return BlynkMessage(command: .getPublishedProject, messageId: messageId, body: publishedId)
+
         case .getEnergy:
             return BlynkMessage(command: .getEnergy, messageId: messageId)
 

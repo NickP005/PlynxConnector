@@ -114,6 +114,10 @@ public enum Action: Sendable {
     case getCloneCode(dashId: Int)
     case getProjectByCloneCode(code: String, create: Bool)
     case getProjectByToken(token: String)
+    /// Pubblica un progetto come entità persistente (ID stabile + versione).
+    case publishProject(dashId: Int)
+    /// Scarica un progetto pubblicato dato il suo ID pubblico stabile.
+    case getPublishedProject(publishedId: String)
 
     // MARK: - Energy
 

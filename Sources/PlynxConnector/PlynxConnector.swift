@@ -677,6 +677,45 @@ public actor Connector {
         }
     }
 
+    // MARK: - Published projects (entità persistente, mirror vivo)
+
+    /// Pubblica un progetto: ritorna (publishedId stabile, versione corrente).
+    /// Ripubblicare lo stesso progetto riusa l'id e incrementa la versione.
+    public func publishProject(dashId: Int) async throws -> (id: String, version: Int) {
+        let response = try await sendForData(.publishProject(dashId: dashId),
+                                             expecting: .publishProject)
+        guard response.command == .publishProject else {
+            throw PlynxError.unexpectedResponse
+        }
+        let parts = response.bodyParts
+        guard let id = parts.first, !id.isEmpty else { throw PlynxError.unexpectedResponse }
+        let version = parts.count > 1 ? (Int(parts[1]) ?? 1) : 1
+        return (id, version)
+    }
+
+    /// Scarica un progetto pubblicato dato il suo ID pubblico: ritorna versione
+    /// + template (dashboard senza token). Usato sia al primo download sia dal
+    /// mirror vivo per controllare se è uscita una versione nuova.
+    public func getPublishedProject(publishedId: String) async throws -> PublishedProject {
+        let response = try await sendForData(.getPublishedProject(publishedId: publishedId),
+                                             expecting: .getPublishedProject)
+        guard response.command == .getPublishedProject,
+              let rawData = response.rawData, !rawData.isEmpty else {
+            throw PlynxError.unexpectedResponse
+        }
+        let decompressed: Data
+        do {
+            decompressed = try GzipHelper.decompress(rawData)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+        do {
+            return try decoder.decode(PublishedProject.self, from: decompressed)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
     public func loadProfile() async throws -> Profile {
         let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
 

@@ -32,4 +32,10 @@ public struct ServerInfo: Sendable, Codable, Equatable {
     public var supportsProjectClone: Bool {
         caps.contains("projectClone")
     }
+
+    /// Il server supporta i progetti pubblicati persistenti (ID stabile +
+    /// versione): pubblicazione, download read-only e mirror vivo.
+    public var supportsPublishedProjects: Bool {
+        caps.contains("publishedProjects")
+    }
 }
