@@ -635,6 +635,48 @@ public actor Connector {
         }
     }
 
+    // MARK: - Project sharing (clone)
+
+    /// Genera un codice di clonazione per un progetto: il server ne fa una copia
+    /// "template" (senza token/segreti né valori dei widget) e ritorna un codice
+    /// condivisibile. Chi ha il codice può importare il progetto con
+    /// `importProject(cloneCode:)`.
+    public func getCloneCode(dashId: Int) async throws -> String {
+        let response = try await sendForData(.getCloneCode(dashId: dashId),
+                                             expecting: .getCloneCode)
+        guard response.command == .getCloneCode else {
+            throw PlynxError.unexpectedResponse
+        }
+        let code = response.body.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !code.isEmpty else { throw PlynxError.unexpectedResponse }
+        return code
+    }
+
+    /// Importa un progetto da un codice di clonazione: il server crea una nuova
+    /// dashboard nel profilo dell'utente rigenerando i token dei device, e
+    /// ritorna la dashboard creata (gzip). Il chiamante di norma ricarica poi
+    /// il profilo per averla in lista.
+    public func importProject(cloneCode: String) async throws -> DashBoard {
+        let response = try await sendForData(
+            .getProjectByCloneCode(code: cloneCode, create: true),
+            expecting: .getProjectByCloneCode)
+        guard response.command == .getProjectByCloneCode,
+              let rawData = response.rawData, !rawData.isEmpty else {
+            throw PlynxError.unexpectedResponse
+        }
+        let decompressed: Data
+        do {
+            decompressed = try GzipHelper.decompress(rawData)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+        do {
+            return try decoder.decode(DashBoard.self, from: decompressed)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
     public func loadProfile() async throws -> Profile {
         let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
 

@@ -27,4 +27,9 @@ public struct ServerInfo: Sendable, Codable, Equatable {
     public var supportsLinkedDevices: Bool {
         caps.contains("linkedDevices")
     }
+
+    /// Il server supporta l'export/import di progetti via codice di clonazione.
+    public var supportsProjectClone: Bool {
+        caps.contains("projectClone")
+    }
 }
