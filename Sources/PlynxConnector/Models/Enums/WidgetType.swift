@@ -49,6 +49,7 @@ public enum WidgetType: String, Codable, Sendable {
     case gravity = "GRAVITY"
     case barometer = "BAROMETER"
     case humidity = "HUMIDITY"
+    case volume = "VOLUME" // Plynx: phone media volume → pin (server cap "volumeWidget")
     
     // MARK: - Notifications
     case twitter = "TWITTER"
