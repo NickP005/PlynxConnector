@@ -112,6 +112,8 @@ public enum CommandCode: UInt8, Sendable {
     case setProjectPublic = 102
     /// Sfoglia/cerca il catalogo pubblico (query vuota = più recenti).
     case listPublicProjects = 103
+    /// Legge lo stato di listing del PROPRIO progetto pubblicato (owner-only).
+    case getProjectPublic = 104
     
     // MARK: - Energy
     case getEnergy = 36
@@ -206,6 +208,7 @@ public enum CommandCode: UInt8, Sendable {
         case .getPublishedProject: return "GET_PUBLISHED_PROJECT"
         case .setProjectPublic: return "SET_PROJECT_PUBLIC"
         case .listPublicProjects: return "LIST_PUBLIC_PROJECTS"
+        case .getProjectPublic: return "GET_PROJECT_PUBLIC"
         case .hardwareLogEvent: return "HARDWARE_LOG_EVENT"
         case .hardwareResendFromBluetooth: return "HARDWARE_RESEND_FROM_BLUETOOTH"
         case .logout: return "LOGOUT"

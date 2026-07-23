@@ -123,6 +123,8 @@ public enum Action: Sendable {
     case setProjectPublic(publishedId: String, isPublic: Bool, username: String, description: String)
     /// Sfoglia/cerca il catalogo pubblico (query nil/vuota = più recenti).
     case listPublicProjects(query: String?, offset: Int, limit: Int)
+    /// Stato di listing del proprio progetto pubblicato (owner-guarded).
+    case getProjectPublic(publishedId: String)
 
     // MARK: - Energy
 

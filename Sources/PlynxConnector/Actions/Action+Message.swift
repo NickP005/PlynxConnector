@@ -337,6 +337,9 @@ extension Action {
             return BlynkMessage(command: .listPublicProjects, messageId: messageId,
                               bodyParts: ["\(offset)", "\(limit)", query ?? ""])
 
+        case .getProjectPublic(let publishedId):
+            return BlynkMessage(command: .getProjectPublic, messageId: messageId, body: publishedId)
+
         case .getEnergy:
             return BlynkMessage(command: .getEnergy, messageId: messageId)
 

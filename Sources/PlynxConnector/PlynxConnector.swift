@@ -756,6 +756,31 @@ public actor Connector {
         }
     }
 
+    /// Legge lo stato di listing del PROPRIO progetto pubblicato: se è in
+    /// catalogo, con username e descrizione salvati sulla riga. Owner-guarded
+    /// lato server: id sconosciuto o altrui → errore (il chiamante tiene i
+    /// default "non elencato").
+    public func getProjectPublic(publishedId: String) async throws -> PublicListingState {
+        let response = try await sendForData(
+            .getProjectPublic(publishedId: publishedId),
+            expecting: .getProjectPublic)
+        guard response.command == .getProjectPublic,
+              let rawData = response.rawData, !rawData.isEmpty else {
+            throw PlynxError.unexpectedResponse
+        }
+        let decompressed: Data
+        do {
+            decompressed = try GzipHelper.decompress(rawData)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+        do {
+            return try decoder.decode(PublicListingState.self, from: decompressed)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
     public func loadProfile() async throws -> Profile {
         let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
 
