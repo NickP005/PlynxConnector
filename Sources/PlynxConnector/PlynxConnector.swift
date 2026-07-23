@@ -781,6 +781,47 @@ public actor Connector {
         }
     }
 
+    /// Commenta un progetto elencato nel catalogo pubblico. Il server rifiuta
+    /// (errore) se il progetto non esiste o non è più elencato.
+    @discardableResult
+    public func postProjectComment(publishedId: String, username: String,
+                                   body: String) async throws -> Event {
+        try await send(.postProjectComment(publishedId: publishedId,
+                                           username: username, body: body))
+    }
+
+    /// Elenca i commenti di un progetto del catalogo, più recenti prima.
+    /// `canDelete` è per-chiamante (proprio commento o proprio progetto).
+    public func listProjectComments(publishedId: String,
+                                    offset: Int = 0,
+                                    limit: Int = 50) async throws -> [ProjectComment] {
+        let response = try await sendForData(
+            .listProjectComments(publishedId: publishedId, offset: offset, limit: limit),
+            expecting: .listProjectComments)
+        guard response.command == .listProjectComments,
+              let rawData = response.rawData, !rawData.isEmpty else {
+            throw PlynxError.unexpectedResponse
+        }
+        let decompressed: Data
+        do {
+            decompressed = try GzipHelper.decompress(rawData)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+        do {
+            return try decoder.decode([ProjectComment].self, from: decompressed)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
+    /// Cancella un commento: consentito all'autore o al proprietario del
+    /// progetto commentato (guard lato server).
+    @discardableResult
+    public func deleteProjectComment(commentId: String) async throws -> Event {
+        try await send(.deleteProjectComment(commentId: commentId))
+    }
+
     public func loadProfile() async throws -> Profile {
         let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
 

@@ -340,6 +340,17 @@ extension Action {
         case .getProjectPublic(let publishedId):
             return BlynkMessage(command: .getProjectPublic, messageId: messageId, body: publishedId)
 
+        case .postProjectComment(let publishedId, let username, let body):
+            return BlynkMessage(command: .postProjectComment, messageId: messageId,
+                              bodyParts: [publishedId, username, body])
+
+        case .listProjectComments(let publishedId, let offset, let limit):
+            return BlynkMessage(command: .listProjectComments, messageId: messageId,
+                              bodyParts: [publishedId, "\(offset)", "\(limit)"])
+
+        case .deleteProjectComment(let commentId):
+            return BlynkMessage(command: .deleteProjectComment, messageId: messageId, body: commentId)
+
         case .getEnergy:
             return BlynkMessage(command: .getEnergy, messageId: messageId)
 

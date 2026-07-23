@@ -114,6 +114,13 @@ public enum CommandCode: UInt8, Sendable {
     case listPublicProjects = 103
     /// Legge lo stato di listing del PROPRIO progetto pubblicato (owner-only).
     case getProjectPublic = 104
+    // Plynx catalog comments (Slice 4b): commenti sui progetti elencati.
+    /// Pubblica un commento su un progetto elencato nel catalogo.
+    case postProjectComment = 105
+    /// Elenca i commenti di un progetto (paginati, più recenti prima).
+    case listProjectComments = 106
+    /// Cancella un commento (autore, o proprietario del progetto commentato).
+    case deleteProjectComment = 107
     
     // MARK: - Energy
     case getEnergy = 36
@@ -209,6 +216,9 @@ public enum CommandCode: UInt8, Sendable {
         case .setProjectPublic: return "SET_PROJECT_PUBLIC"
         case .listPublicProjects: return "LIST_PUBLIC_PROJECTS"
         case .getProjectPublic: return "GET_PROJECT_PUBLIC"
+        case .postProjectComment: return "POST_PROJECT_COMMENT"
+        case .listProjectComments: return "LIST_PROJECT_COMMENTS"
+        case .deleteProjectComment: return "DELETE_PROJECT_COMMENT"
         case .hardwareLogEvent: return "HARDWARE_LOG_EVENT"
         case .hardwareResendFromBluetooth: return "HARDWARE_RESEND_FROM_BLUETOOTH"
         case .logout: return "LOGOUT"

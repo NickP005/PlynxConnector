@@ -125,6 +125,12 @@ public enum Action: Sendable {
     case listPublicProjects(query: String?, offset: Int, limit: Int)
     /// Stato di listing del proprio progetto pubblicato (owner-guarded).
     case getProjectPublic(publishedId: String)
+    /// Commenta un progetto elencato nel catalogo pubblico.
+    case postProjectComment(publishedId: String, username: String, body: String)
+    /// Elenca i commenti di un progetto del catalogo (paginati).
+    case listProjectComments(publishedId: String, offset: Int, limit: Int)
+    /// Cancella un commento (autore o proprietario del progetto).
+    case deleteProjectComment(commentId: String)
 
     // MARK: - Energy
 
