@@ -121,6 +121,11 @@ public enum CommandCode: UInt8, Sendable {
     case listProjectComments = 106
     /// Cancella un commento (autore, o proprietario del progetto commentato).
     case deleteProjectComment = 107
+    // Plynx catalog ratings (Slice 4d): stelle 1..5 sui progetti elencati.
+    /// Vota (o rivota) un progetto del catalogo con 1..5 stelle.
+    case rateProject = 108
+    /// Legge il riepilogo voti di un progetto (mio voto + media + conteggio).
+    case getProjectRating = 109
     
     // MARK: - Energy
     case getEnergy = 36

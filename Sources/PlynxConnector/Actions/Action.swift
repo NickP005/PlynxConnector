@@ -135,6 +135,10 @@ public enum Action: Sendable {
     case listProjectComments(publishedId: String, offset: Int, limit: Int)
     /// Cancella un commento (autore o proprietario del progetto).
     case deleteProjectComment(commentId: String)
+    /// Vota un progetto del catalogo con 1..5 stelle (rivotare sostituisce).
+    case rateProject(publishedId: String, stars: Int)
+    /// Legge mio-voto + media + conteggio di un progetto del catalogo.
+    case getProjectRating(publishedId: String)
 
     // MARK: - Energy
 

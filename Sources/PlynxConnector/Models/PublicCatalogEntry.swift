@@ -26,12 +26,16 @@ public struct PublicCatalogEntry: Sendable, Codable, Identifiable, Hashable {
     /// Quante volte il progetto è stato scaricato (nil su server che non
     /// espongono ancora il contatore).
     public let downloads: Int?
+    /// Media stelle (1 decimale), nil se nessun voto o server senza rating.
+    public let avgRating: Double?
+    /// Numero di voti stelle, nil se nessuno o server senza rating.
+    public let ratingsCount: Int?
 
     public var id: String { publishedId }
 
     public init(publishedId: String, name: String?, authorUsername: String?,
                 description: String?, version: Int, updatedAt: Int64?,
-                downloads: Int? = nil) {
+                downloads: Int? = nil, avgRating: Double? = nil, ratingsCount: Int? = nil) {
         self.publishedId = publishedId
         self.name = name
         self.authorUsername = authorUsername
@@ -39,6 +43,8 @@ public struct PublicCatalogEntry: Sendable, Codable, Identifiable, Hashable {
         self.version = version
         self.updatedAt = updatedAt
         self.downloads = downloads
+        self.avgRating = avgRating
+        self.ratingsCount = ratingsCount
     }
 
     // Decoding difensivo: il server omette i campi null/empty (NON_NULL/NON_EMPTY),
@@ -52,5 +58,7 @@ public struct PublicCatalogEntry: Sendable, Codable, Identifiable, Hashable {
         self.version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         self.updatedAt = try c.decodeIfPresent(Int64.self, forKey: .updatedAt)
         self.downloads = try c.decodeIfPresent(Int.self, forKey: .downloads)
+        self.avgRating = try c.decodeIfPresent(Double.self, forKey: .avgRating)
+        self.ratingsCount = try c.decodeIfPresent(Int.self, forKey: .ratingsCount)
     }
 }

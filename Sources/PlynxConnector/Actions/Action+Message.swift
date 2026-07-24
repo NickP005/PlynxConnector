@@ -356,6 +356,11 @@ extension Action {
 
         case .deleteProjectComment(let commentId):
             return BlynkMessage(command: .deleteProjectComment, messageId: messageId, body: commentId)
+        case .rateProject(let publishedId, let stars):
+            return BlynkMessage(command: .rateProject, messageId: messageId,
+                              bodyParts: [publishedId, "\(stars)"])
+        case .getProjectRating(let publishedId):
+            return BlynkMessage(command: .getProjectRating, messageId: messageId, body: publishedId)
 
         case .getEnergy:
             return BlynkMessage(command: .getEnergy, messageId: messageId)

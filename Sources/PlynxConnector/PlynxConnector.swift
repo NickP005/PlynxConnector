@@ -826,6 +826,31 @@ public actor Connector {
         try await send(.deleteProjectComment(commentId: commentId))
     }
 
+    // MARK: - Public catalog ratings (Slice 4d)
+
+    /// Vota un progetto del catalogo con `stars` (1..5). Rivotare sostituisce il
+    /// voto. Il server rifiuta (serverError) se il progetto non è elencato o se
+    /// sei tu il proprietario (niente auto-voto).
+    @discardableResult
+    public func rateProject(publishedId: String, stars: Int) async throws -> Event {
+        try await send(.rateProject(publishedId: publishedId, stars: stars))
+    }
+
+    /// Legge il riepilogo voti di un progetto: (mio voto 0..5, media, conteggio).
+    /// Reply data-frame testo plain "myStars\0avg\0count".
+    public func getProjectRating(publishedId: String) async throws -> ProjectRating {
+        let response = try await sendForData(.getProjectRating(publishedId: publishedId),
+                                             expecting: .getProjectRating)
+        guard response.command == .getProjectRating else {
+            throw PlynxError.unexpectedResponse
+        }
+        let parts = response.bodyParts
+        let mine = parts.count > 0 ? (Int(parts[0]) ?? 0) : 0
+        let avg = parts.count > 1 ? (Double(parts[1]) ?? 0) : 0
+        let count = parts.count > 2 ? (Int(parts[2]) ?? 0) : 0
+        return ProjectRating(myStars: mine, average: avg, count: count)
+    }
+
     public func loadProfile() async throws -> Profile {
         let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
 
