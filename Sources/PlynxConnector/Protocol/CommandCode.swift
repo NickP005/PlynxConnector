@@ -246,6 +246,8 @@ public enum CommandCode: UInt8, Sendable {
         case .getServerInfo: return "GET_SERVER_INFO"
         case .linkDevice: return "LINK_DEVICE"
         case .unlinkDevice: return "UNLINK_DEVICE"
+        case .rateProject: return "RATE_PROJECT"
+        case .getProjectRating: return "GET_PROJECT_RATING"
         }
     }
 }
