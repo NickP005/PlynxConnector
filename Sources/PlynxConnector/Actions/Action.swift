@@ -117,7 +117,11 @@ public enum Action: Sendable {
     /// Pubblica un progetto come entità persistente (ID stabile + versione).
     case publishProject(dashId: Int)
     /// Scarica un progetto pubblicato dato il suo ID pubblico stabile.
-    case getPublishedProject(publishedId: String)
+    /// countsAsDownload: false per il fetch di sola anteprima (pagina dettaglio
+    /// catalogo) — il server non incrementa il contatore download. I client
+    /// vecchi non mandano il flag e il server conta (comportamento storico:
+    /// chiamavano 101 solo all'import).
+    case getPublishedProject(publishedId: String, countsAsDownload: Bool = true)
     /// Elenca/rimuove un proprio progetto pubblicato dal catalogo pubblico,
     /// denormalizzando lo username autore e una descrizione sulla card.
     case setProjectPublic(publishedId: String, isPublic: Bool, username: String, description: String)

@@ -23,17 +23,22 @@ public struct PublicCatalogEntry: Sendable, Codable, Identifiable, Hashable {
     public let version: Int
     /// Epoch millis dell'ultima pubblicazione (per ordinamento/"aggiornato").
     public let updatedAt: Int64?
+    /// Quante volte il progetto è stato scaricato (nil su server che non
+    /// espongono ancora il contatore).
+    public let downloads: Int?
 
     public var id: String { publishedId }
 
     public init(publishedId: String, name: String?, authorUsername: String?,
-                description: String?, version: Int, updatedAt: Int64?) {
+                description: String?, version: Int, updatedAt: Int64?,
+                downloads: Int? = nil) {
         self.publishedId = publishedId
         self.name = name
         self.authorUsername = authorUsername
         self.description = description
         self.version = version
         self.updatedAt = updatedAt
+        self.downloads = downloads
     }
 
     // Decoding difensivo: il server omette i campi null/empty (NON_NULL/NON_EMPTY),
@@ -46,5 +51,6 @@ public struct PublicCatalogEntry: Sendable, Codable, Identifiable, Hashable {
         self.description = try c.decodeIfPresent(String.self, forKey: .description)
         self.version = try c.decodeIfPresent(Int.self, forKey: .version) ?? 1
         self.updatedAt = try c.decodeIfPresent(Int64.self, forKey: .updatedAt)
+        self.downloads = try c.decodeIfPresent(Int.self, forKey: .downloads)
     }
 }

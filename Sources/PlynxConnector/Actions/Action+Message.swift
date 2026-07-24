@@ -326,8 +326,14 @@ extension Action {
         case .publishProject(let dashId):
             return BlynkMessage(command: .publishProject, messageId: messageId, body: "\(dashId)")
 
-        case .getPublishedProject(let publishedId):
-            return BlynkMessage(command: .getPublishedProject, messageId: messageId, body: publishedId)
+        case .getPublishedProject(let publishedId, let countsAsDownload):
+            //Flag additivo "0" = solo anteprima (non contare come download).
+            //Omesso nel caso download per restare byte-identici ai client
+            //storici (i server vecchi ignorano comunque la parte extra).
+            return countsAsDownload
+                ? BlynkMessage(command: .getPublishedProject, messageId: messageId, body: publishedId)
+                : BlynkMessage(command: .getPublishedProject, messageId: messageId,
+                               bodyParts: [publishedId, "0"])
 
         case .setProjectPublic(let publishedId, let isPublic, let username, let description):
             return BlynkMessage(command: .setProjectPublic, messageId: messageId,

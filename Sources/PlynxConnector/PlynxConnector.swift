@@ -696,8 +696,12 @@ public actor Connector {
     /// Scarica un progetto pubblicato dato il suo ID pubblico: ritorna versione
     /// + template (dashboard senza token). Usato sia al primo download sia dal
     /// mirror vivo per controllare se è uscita una versione nuova.
-    public func getPublishedProject(publishedId: String) async throws -> PublishedProject {
-        let response = try await sendForData(.getPublishedProject(publishedId: publishedId),
+    /// countsAsDownload: passa false per un fetch di sola anteprima (la pagina
+    /// dettaglio del catalogo) così il server non lo conta come download.
+    public func getPublishedProject(publishedId: String,
+                                    countsAsDownload: Bool = true) async throws -> PublishedProject {
+        let response = try await sendForData(.getPublishedProject(publishedId: publishedId,
+                                                                  countsAsDownload: countsAsDownload),
                                              expecting: .getPublishedProject)
         guard response.command == .getPublishedProject,
               let rawData = response.rawData, !rawData.isEmpty else {
