@@ -54,11 +54,27 @@ public struct EventorTimerTime: Codable, Sendable {
     public var time: Int?
     public var tzName: String?
 
-    public init(id: Int? = nil, days: [Int]? = nil, time: Int? = nil, tzName: String? = nil) {
+    /// Solar schedule (additive, backward-compatible with servers/clients that
+    /// predate it): 0 or nil = fixed `time`; 1 = sunrise; 2 = sunset. When set,
+    /// the server computes the daily fire time from `lat`/`lon` (+ `solarOffset`
+    /// minutes) and `time` is ignored.
+    public var solarType: Int?
+    /// Minutes added to the solar event (negative = before, e.g. -15 = 15 min
+    /// before sunrise/sunset).
+    public var solarOffset: Int?
+    public var lat: Double?
+    public var lon: Double?
+
+    public init(id: Int? = nil, days: [Int]? = nil, time: Int? = nil, tzName: String? = nil,
+                solarType: Int? = nil, solarOffset: Int? = nil, lat: Double? = nil, lon: Double? = nil) {
         self.id = id
         self.days = days
         self.time = time
         self.tzName = tzName
+        self.solarType = solarType
+        self.solarOffset = solarOffset
+        self.lat = lat
+        self.lon = lon
     }
 }
 
