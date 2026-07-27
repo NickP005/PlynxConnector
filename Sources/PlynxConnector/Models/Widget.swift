@@ -176,9 +176,22 @@ public struct Widget: Codable, Sendable, Identifiable {
     
     /// URL for image/video
     public var url: String?
-    
+
     /// Multiple URLs
     public var urls: [String]?
+
+    // MARK: - Webhook specific
+
+    /// HTTP method the server uses to call `url`: GET (default), POST, PUT, DELETE.
+    /// Server side these come from SupportedWebhookMethod.
+    public var method: String?
+
+    /// Custom HTTP headers sent with the webhook call.
+    public var headers: [WebhookHeader]?
+
+    /// Request body template. Supports the server placeholders: /pin/,
+    /// /pin[0]/ … /pin[9]/, /datetime_iso/, device_owner_email.
+    public var body: String?
     
     // MARK: - Terminal specific
     
@@ -286,6 +299,7 @@ public struct Widget: Codable, Sendable, Identifiable {
         case startValue, stopValue
         case days, timezone
         case url, urls, autoScrollOn, textInputOn, textLightOn
+        case method, headers, body
         case notifyWhenOffline, notifyBody, notifyWhenOfflineIgnorePeriod, priority
         case isPinToLatestPoint, isMyLocationSupported, isSatelliteMode, labelFormat, radius
         case templates, tiles, reports, tabs
@@ -368,6 +382,10 @@ public struct Widget: Codable, Sendable, Identifiable {
         timezone = try container.decodeIfPresent(String.self, forKey: .timezone)
         url = try container.decodeIfPresent(String.self, forKey: .url)
         urls = try container.decodeIfPresent([String].self, forKey: .urls)
+        method = try container.decodeIfPresent(String.self, forKey: .method)
+        headers = Self.lossyDecodeIfPresent([WebhookHeader].self, from: container,
+                                            forKey: .headers, decoder: decoder, widgetId: id)
+        body = try container.decodeIfPresent(String.self, forKey: .body)
         autoScrollOn = try container.decodeIfPresent(Bool.self, forKey: .autoScrollOn)
         textInputOn = try container.decodeIfPresent(Bool.self, forKey: .textInputOn)
         textLightOn = try container.decodeIfPresent(Bool.self, forKey: .textLightOn)
@@ -461,6 +479,9 @@ public struct Widget: Codable, Sendable, Identifiable {
         try container.encodeIfPresent(timezone, forKey: .timezone)
         try container.encodeIfPresent(url, forKey: .url)
         try container.encodeIfPresent(urls, forKey: .urls)
+        try container.encodeIfPresent(method, forKey: .method)
+        try container.encodeIfPresent(headers, forKey: .headers)
+        try container.encodeIfPresent(body, forKey: .body)
         try container.encodeIfPresent(autoScrollOn, forKey: .autoScrollOn)
         try container.encodeIfPresent(textInputOn, forKey: .textInputOn)
         try container.encodeIfPresent(textLightOn, forKey: .textLightOn)
@@ -666,5 +687,17 @@ public struct Tile: Codable, Sendable {
     public init(deviceId: Int, templateId: Int) {
         self.deviceId = deviceId
         self.templateId = templateId
+    }
+}
+
+/// Custom HTTP header on a Webhook widget. Mirrors the server's
+/// `cc.blynk.server.core.model.widgets.others.webhook.Header`.
+public struct WebhookHeader: Codable, Sendable, Hashable {
+    public var name: String
+    public var value: String
+
+    public init(name: String, value: String) {
+        self.name = name
+        self.value = value
     }
 }
