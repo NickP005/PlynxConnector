@@ -362,6 +362,39 @@ extension Action {
         case .getProjectRating(let publishedId):
             return BlynkMessage(command: .getProjectRating, messageId: messageId, body: publishedId)
 
+        case .otaUploadToken:
+            return BlynkMessage(command: .otaUploadToken, messageId: messageId)
+
+        case .otaList:
+            return BlynkMessage(command: .otaList, messageId: messageId)
+
+        case .otaPush(let deviceRef, let versionId):
+            return BlynkMessage(command: .otaPush, messageId: messageId,
+                              bodyParts: [deviceRef, versionId])
+
+        case .otaPromote(let versionId):
+            return BlynkMessage(command: .otaPromote, messageId: messageId, body: versionId)
+
+        case .otaFollow(let deviceRef, let lineageId):
+            //lineage vuoto = "smetti di seguire" (il server accetta anche "0"):
+            //la seconda parte va comunque mandata, sennò il body non ha campi.
+            return BlynkMessage(command: .otaFollow, messageId: messageId,
+                              bodyParts: [deviceRef, lineageId ?? ""])
+
+        case .otaSetTest(let deviceRef, let isTestBoard):
+            return BlynkMessage(command: .otaSetTest, messageId: messageId,
+                              bodyParts: [deviceRef, isTestBoard ? "true" : "false"])
+
+        case .otaStatus(let deviceRef):
+            return BlynkMessage(command: .otaStatus, messageId: messageId, body: deviceRef)
+
+        case .otaDeleteVersion(let versionId):
+            return BlynkMessage(command: .otaDeleteVersion, messageId: messageId, body: versionId)
+
+        case .editorPairClaim(let pairCode, let dashId):
+            return BlynkMessage(command: .editorPairClaim, messageId: messageId,
+                              bodyParts: [pairCode, "\(dashId)"])
+
         case .getEnergy:
             return BlynkMessage(command: .getEnergy, messageId: messageId)
 

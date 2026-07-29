@@ -140,6 +140,30 @@ public enum Action: Sendable {
     /// Legge mio-voto + media + conteggio di un progetto del catalogo.
     case getProjectRating(publishedId: String)
 
+    // MARK: - OTA (aggiornamento firmware)
+
+    /// Chiede un token monouso a breve scadenza per l'upload HTTP del binario.
+    case otaUploadToken
+    /// Quadro OTA completo dell'utente (risposta gzippata).
+    case otaList
+    /// Manda una versione firmware a UNA scheda (canary).
+    case otaPush(deviceRef: String, versionId: String)
+    /// Promuove una versione a tutte le schede che seguono il suo lineage.
+    case otaPromote(versionId: String)
+    /// (Dis)abbona una scheda a un lineage; `lineageId` nil/vuoto = smetti di seguire.
+    case otaFollow(deviceRef: String, lineageId: String?)
+    /// Marca/smarca una scheda come scheda di test (canary).
+    case otaSetTest(deviceRef: String, isTestBoard: Bool)
+    /// Stato OTA di una singola scheda.
+    case otaStatus(deviceRef: String)
+    /// Cancella una versione firmware dal registro dell'utente.
+    case otaDeleteVersion(versionId: String)
+
+    // MARK: - Editor web
+
+    /// Rivendica il codice mostrato dal browser, legando l'editor a un progetto.
+    case editorPairClaim(pairCode: String, dashId: Int)
+
     // MARK: - Energy
 
     case getEnergy

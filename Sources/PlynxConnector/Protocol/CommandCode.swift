@@ -126,7 +126,30 @@ public enum CommandCode: UInt8, Sendable {
     case rateProject = 108
     /// Legge il riepilogo voti di un progetto (mio voto + media + conteggio).
     case getProjectRating = 109
-    
+
+    // MARK: - OTA (aggiornamento firmware, Plynx)
+    /// Chiede un token monouso a breve scadenza per l'upload HTTP del .bin.
+    case otaUploadToken = 110
+    /// Quadro OTA completo dell'utente (quota + lineage + versioni + schede).
+    /// Risposta gzippata, come loadProfileGzipped/listPublicProjects.
+    case otaList = 111
+    /// Manda una versione a UNA scheda (canary): body `deviceRef\0versionId`.
+    case otaPush = 112
+    /// Promuove una versione a tutte le schede che seguono il suo lineage.
+    case otaPromote = 113
+    /// (Dis)abbona una scheda a un lineage: body `deviceRef\0lineageId`.
+    case otaFollow = 114
+    /// Marca/smarca una scheda come scheda di test (canary).
+    case otaSetTest = 115
+    /// Stato OTA di una singola scheda: body `deviceRef`.
+    case otaStatus = 116
+    /// Cancella una versione firmware dal registro: body `versionId`.
+    case otaDeleteVersion = 117
+
+    // MARK: - Editor web (pairing stile Chromecast)
+    /// L'app rivendica il codice mostrato dal browser: body `pairCode\0dashId`.
+    case editorPairClaim = 118
+
     // MARK: - Energy
     case getEnergy = 36
     case addEnergy = 37
@@ -248,6 +271,15 @@ public enum CommandCode: UInt8, Sendable {
         case .unlinkDevice: return "UNLINK_DEVICE"
         case .rateProject: return "RATE_PROJECT"
         case .getProjectRating: return "GET_PROJECT_RATING"
+        case .otaUploadToken: return "OTA_UPLOAD_TOKEN"
+        case .otaList: return "OTA_LIST"
+        case .otaPush: return "OTA_PUSH"
+        case .otaPromote: return "OTA_PROMOTE"
+        case .otaFollow: return "OTA_FOLLOW"
+        case .otaSetTest: return "OTA_SET_TEST"
+        case .otaStatus: return "OTA_STATUS"
+        case .otaDeleteVersion: return "OTA_DELETE_VERSION"
+        case .editorPairClaim: return "EDITOR_PAIR_CLAIM"
         }
     }
 }

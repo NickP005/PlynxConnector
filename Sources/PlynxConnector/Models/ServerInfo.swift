@@ -44,4 +44,17 @@ public struct ServerInfo: Sendable, Codable, Equatable {
     public var supportsPublicCatalog: Bool {
         caps.contains("publicCatalog")
     }
+
+    /// Il server supporta l'OTA utente: registro firmware, upload del .bin,
+    /// push su una scheda, promote sul lineage. Senza questa cap la UI OTA
+    /// non deve nemmeno comparire (server vecchio).
+    public var supportsOta: Bool {
+        caps.contains("ota")
+    }
+
+    /// Il server supporta il pairing dell'editor web (codice mostrato dal
+    /// browser e rivendicato dall'app).
+    public var supportsEditorPair: Bool {
+        caps.contains("editorPair")
+    }
 }

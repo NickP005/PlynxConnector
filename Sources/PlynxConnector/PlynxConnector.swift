@@ -47,6 +47,10 @@ public actor Connector {
     public var responseTimeout: TimeInterval = 10.0
     
     public var pingInterval: TimeInterval = 10.0
+
+    /// Timeout della POST multipart del firmware: un .bin da 2MB su rete
+    /// domestica non entra nei 10s delle risposte sul filo.
+    public var otaUploadTimeout: TimeInterval = 180.0
     
     // MARK: - Callbacks
     
@@ -849,6 +853,185 @@ public actor Connector {
         let avg = parts.count > 1 ? (Double(parts[1]) ?? 0) : 0
         let count = parts.count > 2 ? (Int(parts[2]) ?? 0) : 0
         return ProjectRating(myStars: mine, average: avg, count: count)
+    }
+
+    // MARK: - OTA (aggiornamento firmware)
+
+    /// Chiede un ticket di upload: token monouso a breve scadenza legato a
+    /// questa sessione autenticata, più i limiti del server (taglia massima e
+    /// quota) per scartare un file troppo grande prima di spedirlo.
+    public func requestOtaUploadTicket() async throws -> OtaUploadTicket {
+        let response = try await sendForData(.otaUploadToken, expecting: .otaUploadToken)
+        guard response.command == .otaUploadToken,
+              let data = response.body.data(using: .utf8) else {
+            throw PlynxError.unexpectedResponse
+        }
+        do {
+            return try decoder.decode(OtaUploadTicket.self, from: data)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
+    /// Il quadro OTA completo dell'utente: quota, lineage, versioni caricate e
+    /// stato di ogni scheda. Risposta gzippata come loadProfile/catalogo.
+    public func otaList() async throws -> OtaSnapshot {
+        let response = try await sendForData(.otaList, expecting: .otaList)
+        guard response.command == .otaList,
+              let rawData = response.rawData, !rawData.isEmpty else {
+            throw PlynxError.unexpectedResponse
+        }
+        let decompressed: Data
+        do {
+            decompressed = try GzipHelper.decompress(rawData)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+        do {
+            return try decoder.decode(OtaSnapshot.self, from: decompressed)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
+    /// Stato OTA di una singola scheda (stessa forma di una riga di `otaList`).
+    public func otaStatus(of device: OtaDeviceRef) async throws -> OtaDeviceStatus {
+        let response = try await sendForData(.otaStatus(deviceRef: device.wireValue),
+                                             expecting: .otaStatus)
+        guard response.command == .otaStatus,
+              let data = response.body.data(using: .utf8) else {
+            throw PlynxError.unexpectedResponse
+        }
+        do {
+            return try decoder.decode(OtaDeviceStatus.self, from: data)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
+    /// Manda una versione firmware a UNA scheda (il canary del flusso
+    /// canary → promote). Se la scheda è online il trigger parte subito
+    /// (`sent`), altrimenti resta in attesa del prossimo reconnect.
+    @discardableResult
+    public func otaPush(_ device: OtaDeviceRef, versionId: String) async throws -> OtaPushResult {
+        let response = try await sendForData(
+            .otaPush(deviceRef: device.wireValue, versionId: versionId),
+            expecting: .otaPush)
+        guard response.command == .otaPush,
+              let data = response.body.data(using: .utf8) else {
+            throw PlynxError.unexpectedResponse
+        }
+        do {
+            return try decoder.decode(OtaPushResult.self, from: data)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
+    /// Promuove una versione a TUTTE le schede che seguono il suo lineage:
+    /// prima le schede di test, poi le altre online, infine le offline (che la
+    /// prenderanno riconnettendosi).
+    @discardableResult
+    public func otaPromote(versionId: String) async throws -> OtaPromoteResult {
+        let response = try await sendForData(.otaPromote(versionId: versionId),
+                                             expecting: .otaPromote)
+        guard response.command == .otaPromote,
+              let data = response.body.data(using: .utf8) else {
+            throw PlynxError.unexpectedResponse
+        }
+        do {
+            return try decoder.decode(OtaPromoteResult.self, from: data)
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
+    /// Abbona una scheda a un lineage (`lineageId` nil = smetti di seguire:
+    /// la scheda non riceverà più le promote).
+    @discardableResult
+    public func otaFollow(_ device: OtaDeviceRef, lineageId: String?) async throws -> Event {
+        try await send(.otaFollow(deviceRef: device.wireValue, lineageId: lineageId))
+    }
+
+    /// Marca/smarca una scheda come scheda di test: è quella che riceve per
+    /// prima le promote (canary).
+    @discardableResult
+    public func otaSetTestBoard(_ device: OtaDeviceRef, isTestBoard: Bool) async throws -> Event {
+        try await send(.otaSetTest(deviceRef: device.wireValue, isTestBoard: isTestBoard))
+    }
+
+    /// Cancella una versione firmware dal registro (libera quota). Il server
+    /// invalida i download token pendenti e azzera i target che la puntavano.
+    @discardableResult
+    public func otaDeleteVersion(versionId: String) async throws -> Event {
+        try await send(.otaDeleteVersion(versionId: versionId))
+    }
+
+    /// Carica un binario firmware per una scheda: chiede (o riusa) il ticket,
+    /// controlla la taglia contro i limiti del server e fa la POST multipart
+    /// su https://{host}:{port}/ota/upload. Ritorna i metadati della versione
+    /// registrata — occhio a `cmMissing`: binario senza connection manager, il
+    /// token compilato dentro può sovrascrivere le credenziali della scheda.
+    /// - Throws: `OtaUploadError` (quota, size, build, token, device).
+    public func uploadFirmware(_ binary: Data,
+                               to device: OtaDeviceRef,
+                               fileName: String = "firmware.bin",
+                               ticket providedTicket: OtaUploadTicket? = nil) async throws -> OtaUploadResult {
+        guard !binary.isEmpty else { throw OtaUploadError.invalidFile }
+
+        let ticket: OtaUploadTicket
+        if let providedTicket = providedTicket {
+            ticket = providedTicket
+        } else {
+            ticket = try await requestOtaUploadTicket()
+        }
+        let byteCount = Int64(binary.count)
+        if ticket.maxBinBytes > 0 && byteCount > ticket.maxBinBytes {
+            //il token è monouso: meglio non bruciarlo per un file già fuori taglia.
+            throw OtaUploadError.fileTooLarge(sizeBytes: byteCount, maxBytes: ticket.maxBinBytes)
+        }
+        guard let url = otaUploadURL(ticket: ticket, device: device) else {
+            throw OtaUploadError.invalidResponse
+        }
+
+        let client = OtaUploadClient(acceptsAnyCertificate: useSSL, timeout: otaUploadTimeout)
+        defer { client.invalidate() }
+
+        let (status, body) = try await client.upload(binary, to: url, fileName: fileName)
+        guard status == 200 else {
+            throw OtaUploadError.from(status: status, body: body)
+        }
+        do {
+            return try decoder.decode(OtaUploadResult.self, from: body)
+        } catch {
+            throw OtaUploadError.invalidResponse
+        }
+    }
+
+    /// L'endpoint di upload vive sullo stesso host/porta della connessione app
+    /// (sul Pi: HTTPS 9443); il path lo dichiara il server nel ticket.
+    private func otaUploadURL(ticket: OtaUploadTicket, device: OtaDeviceRef) -> URL? {
+        var components = URLComponents()
+        components.scheme = useSSL ? "https" : "http"
+        components.host = host
+        components.port = Int(port)
+        components.path = ticket.uploadPath.hasPrefix("/") ? ticket.uploadPath : "/" + ticket.uploadPath
+        components.queryItems = [
+            URLQueryItem(name: "token", value: ticket.token),
+            URLQueryItem(name: "device", value: device.wireValue)
+        ]
+        return components.url
+    }
+
+    // MARK: - Editor web (pairing stile Chromecast)
+
+    /// Rivendica il codice mostrato da plynx.cc/editor legandolo a un progetto:
+    /// il browser si sblocca sull'editor di quel progetto senza mai vedere una
+    /// password. Codici sconosciuti/scaduti → `.invalidToken`, codici già
+    /// rivendicati → `.notAllowed` nel codice di risposta.
+    @discardableResult
+    public func claimEditorPairCode(_ pairCode: String, dashId: Int) async throws -> Event {
+        try await send(.editorPairClaim(pairCode: pairCode, dashId: dashId))
     }
 
     public func loadProfile() async throws -> Profile {
