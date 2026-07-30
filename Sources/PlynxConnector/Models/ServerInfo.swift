@@ -57,4 +57,12 @@ public struct ServerInfo: Sendable, Codable, Equatable {
     public var supportsEditorPair: Bool {
         caps.contains("editorPair")
     }
+
+    /// Il server sa elencare e scollegare i browser già abbinati all'editor.
+    /// Senza questa cap la schermata "Modifica sul computer" può solo
+    /// proporre un nuovo abbinamento: non c'è modo di sapere se una sessione
+    /// è già aperta.
+    public var supportsEditorSessions: Bool {
+        caps.contains("editorSessions")
+    }
 }

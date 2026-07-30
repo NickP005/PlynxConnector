@@ -163,6 +163,10 @@ public enum Action: Sendable {
 
     /// Rivendica il codice mostrato dal browser, legando l'editor a un progetto.
     case editorPairClaim(pairCode: String, dashId: Int)
+    /// Elenca i browser già abbinati (`dashId` nil = tutti i progetti).
+    case editorSessions(dashId: Int?)
+    /// Scollega un browser abbinato, per `id` opaco della sessione.
+    case editorSessionRevoke(sessionId: String)
 
     // MARK: - Energy
 

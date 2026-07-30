@@ -395,6 +395,16 @@ extension Action {
             return BlynkMessage(command: .editorPairClaim, messageId: messageId,
                               bodyParts: [pairCode, "\(dashId)"])
 
+        case .editorSessions(let dashId):
+            //body vuoto = tutte le sessioni dell'utente; con un dashId il
+            //server filtra lui, così la lista non passa dalla rete intera.
+            return BlynkMessage(command: .editorSessions, messageId: messageId,
+                              body: dashId.map { "\($0)" } ?? "")
+
+        case .editorSessionRevoke(let sessionId):
+            return BlynkMessage(command: .editorSessionRevoke, messageId: messageId,
+                              body: sessionId)
+
         case .getEnergy:
             return BlynkMessage(command: .getEnergy, messageId: messageId)
 

@@ -149,6 +149,11 @@ public enum CommandCode: UInt8, Sendable {
     // MARK: - Editor web (pairing stile Chromecast)
     /// L'app rivendica il codice mostrato dal browser: body `pairCode\0dashId`.
     case editorPairClaim = 118
+    /// Elenca i browser già abbinati: body vuoto = tutti, body `dashId` = solo
+    /// quelli di un progetto. Risposta JSON UTF-8 (non gzippata).
+    case editorSessions = 119
+    /// Scollega un browser abbinato: body = `id` opaco della sessione.
+    case editorSessionRevoke = 120
 
     // MARK: - Energy
     case getEnergy = 36
@@ -280,6 +285,8 @@ public enum CommandCode: UInt8, Sendable {
         case .otaStatus: return "OTA_STATUS"
         case .otaDeleteVersion: return "OTA_DELETE_VERSION"
         case .editorPairClaim: return "EDITOR_PAIR_CLAIM"
+        case .editorSessions: return "EDITOR_SESSIONS"
+        case .editorSessionRevoke: return "EDITOR_SESSION_REVOKE"
         }
     }
 }

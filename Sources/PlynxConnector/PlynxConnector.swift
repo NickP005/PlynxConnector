@@ -1034,6 +1034,32 @@ public actor Connector {
         try await send(.editorPairClaim(pairCode: pairCode, dashId: dashId))
     }
 
+    /// I browser già abbinati e ancora vivi: `dashId` nil = tutti i progetti,
+    /// altrimenti solo quelli abbinati a quel progetto. Ordine dal più recente.
+    /// Il token di sessione non è nella risposta: torna solo un `id` opaco, ed
+    /// è l'unica cosa da passare a `revokeEditorSession`.
+    public func editorSessions(dashId: Int? = nil) async throws -> [EditorSession] {
+        let response = try await sendForData(.editorSessions(dashId: dashId),
+                                             expecting: .editorSessions)
+        guard response.command == .editorSessions,
+              let data = response.body.data(using: .utf8) else {
+            throw PlynxError.unexpectedResponse
+        }
+        do {
+            return try decoder.decode(EditorSessionList.self, from: data).sessions
+        } catch {
+            throw PlynxError.decodingError(error)
+        }
+    }
+
+    /// Scollega un browser abbinato. Da lì in poi le sue chiamate all'editor
+    /// prendono 401. Una sessione già scaduta/revocata (o di un altro account)
+    /// torna `.invalidToken` nel codice di risposta.
+    @discardableResult
+    public func revokeEditorSession(_ sessionId: String) async throws -> Event {
+        try await send(.editorSessionRevoke(sessionId: sessionId))
+    }
+
     public func loadProfile() async throws -> Profile {
         let response = try await sendForData(.loadProfile(dashId: nil, published: false), expecting: .loadProfileGzipped)
 
