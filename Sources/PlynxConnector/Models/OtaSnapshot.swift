@@ -242,11 +242,18 @@ public struct OtaPromoteResult: Sendable, Codable, Hashable {
     public let total: Int
     public let sent: Int
     public let pending: Int
+    /// Schede saltate perché il binario non entra nello spazio che dichiarano:
+    /// non hanno ricevuto niente e restano sulla versione di prima. Additivo:
+    /// un jar più vecchio non lo manda e vale 0, non "nessuna saltata per
+    /// certo" — semplicemente non c'è nessuna scheda che il server abbia
+    /// saltato, perché quel jar non salta nessuno.
+    public let skipped: Int
 
-    public init(total: Int, sent: Int, pending: Int) {
+    public init(total: Int, sent: Int, pending: Int, skipped: Int = 0) {
         self.total = total
         self.sent = sent
         self.pending = pending
+        self.skipped = skipped
     }
 
     public init(from decoder: Decoder) throws {
@@ -254,5 +261,6 @@ public struct OtaPromoteResult: Sendable, Codable, Hashable {
         self.total = try c.decodeIfPresent(Int.self, forKey: .total) ?? 0
         self.sent = try c.decodeIfPresent(Int.self, forKey: .sent) ?? 0
         self.pending = try c.decodeIfPresent(Int.self, forKey: .pending) ?? 0
+        self.skipped = try c.decodeIfPresent(Int.self, forKey: .skipped) ?? 0
     }
 }

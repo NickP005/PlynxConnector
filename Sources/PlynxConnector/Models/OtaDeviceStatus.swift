@@ -231,6 +231,22 @@ public struct OtaDeviceStatus: Sendable, Codable, Identifiable, Hashable {
     /// ereditare lo scarto dell'orologio del telefono.
     public let serverNow: Int64?
 
+    // MARK: Capacità di flash dichiarate dalla scheda (additive)
+    //
+    // Le riporta la scheda stessa nel `blnkinf` al login, e il server le
+    // ripubblica solo quando le conosce davvero: chiave ASSENTE = mai riportate
+    // (firmware vecchio, scheda mai connessa, target non-ESP). Assente non è
+    // zero — `otaMaxBytes == 0` è la scheda che dichiara di NON poter fare OTA.
+
+    /// La più grande immagine che questa scheda può accettare via OTA adesso
+    /// (partizione OTA su ESP32, spazio sketch libero su ESP8266).
+    /// `nil` = la scheda non l'ha mai detto; `0` = non può fare OTA.
+    public let otaMaxBytes: Int64?
+    /// Flash totale configurata per questo build. Solo informativa.
+    public let flashBytes: Int64?
+    /// Byte occupati dallo sketch in esecuzione. Solo informativa.
+    public let sketchBytes: Int64?
+
     public var id: String { "\(dashId):\(deviceId)" }
 
     /// Riferimento pronto da rimandare ai comandi OTA.
@@ -242,11 +258,32 @@ public struct OtaDeviceStatus: Sendable, Codable, Identifiable, Hashable {
     public var targetVersionId: String? { ota?.targetVersionId }
     public var lastReportedBuild: String? { ota?.lastReportedBuild }
 
+    /// Le capacità di flash sono note per questa scheda.
+    public var hasFlashCapabilities: Bool { otaMaxBytes != nil }
+
+    /// Un binario di questa taglia ci sta? `nil` = **non si sa**, e allora non
+    /// si blocca niente: una scheda che non ha mai riportato le sue capacità
+    /// non deve trovarsi un divieto costruito su un numero inventato.
+    /// `false` solo su un dato riportato davvero, confrontato senza margini
+    /// (è lo stesso byte contro cui il dispositivo valida da solo).
+    public func fits(byteCount: Int64) -> Bool? {
+        guard let otaMaxBytes else { return nil }
+        //taglia del binario ignota (il server non ce l'ha più): nessun verdetto.
+        guard byteCount > 0 else { return nil }
+        return byteCount <= otaMaxBytes
+    }
+
+    /// Come sopra, per una versione firmware caricata.
+    public func fits(_ version: OtaFirmwareVersion) -> Bool? {
+        fits(byteCount: version.size)
+    }
+
     public init(dashId: Int, deviceId: Int, name: String? = nil, boardType: String? = nil,
                 followLineageId: String? = nil, isTestBoard: Bool = false, online: Bool = false,
                 currentBuild: String? = nil, ota: Update? = nil,
                 connectTime: Int64? = nil, disconnectTime: Int64? = nil,
-                serverNow: Int64? = nil) {
+                serverNow: Int64? = nil, otaMaxBytes: Int64? = nil,
+                flashBytes: Int64? = nil, sketchBytes: Int64? = nil) {
         self.dashId = dashId
         self.deviceId = deviceId
         self.name = name
@@ -259,12 +296,16 @@ public struct OtaDeviceStatus: Sendable, Codable, Identifiable, Hashable {
         self.connectTime = connectTime
         self.disconnectTime = disconnectTime
         self.serverNow = serverNow
+        self.otaMaxBytes = otaMaxBytes
+        self.flashBytes = flashBytes
+        self.sketchBytes = sketchBytes
     }
 
     private enum CodingKeys: String, CodingKey {
         case dashId, deviceId, name, boardType, followLineageId, isTestBoard
         case online, currentBuild, ota
         case connectTime, disconnectTime, serverNow
+        case otaMaxBytes, flashBytes, sketchBytes
         //forma alternativa (campi dell'update sul livello alto)
         case targetVersionId, state, sentAt, attempts, lastReportedBuild
         case totalBytes, sentBytes, downloadStartedAt, lastByteAt
@@ -289,6 +330,17 @@ public struct OtaDeviceStatus: Sendable, Codable, Identifiable, Hashable {
         self.connectTime = try c.decodeIfPresent(Int64.self, forKey: .connectTime)
         self.disconnectTime = try c.decodeIfPresent(Int64.self, forKey: .disconnectTime)
         self.serverNow = try c.decodeIfPresent(Int64.self, forKey: .serverNow)
+
+        // Il server omette queste chiavi quando non sa: le teniamo `nil`.
+        // Un negativo (jar che dovesse pubblicare il proprio "sconosciuto"
+        // invece di omettere) vale sconosciuto, mai "non ci sta niente".
+        func known(_ key: CodingKeys) throws -> Int64? {
+            guard let value = try c.decodeIfPresent(Int64.self, forKey: key) else { return nil }
+            return value >= 0 ? value : nil
+        }
+        self.otaMaxBytes = try known(.otaMaxBytes)
+        self.flashBytes = try known(.flashBytes)
+        self.sketchBytes = try known(.sketchBytes)
 
         if let nested = try c.decodeIfPresent(Update.self, forKey: .ota) {
             self.ota = nested
@@ -335,6 +387,9 @@ public struct OtaDeviceStatus: Sendable, Codable, Identifiable, Hashable {
         try c.encodeIfPresent(connectTime, forKey: .connectTime)
         try c.encodeIfPresent(disconnectTime, forKey: .disconnectTime)
         try c.encodeIfPresent(serverNow, forKey: .serverNow)
+        try c.encodeIfPresent(otaMaxBytes, forKey: .otaMaxBytes)
+        try c.encodeIfPresent(flashBytes, forKey: .flashBytes)
+        try c.encodeIfPresent(sketchBytes, forKey: .sketchBytes)
         try c.encodeIfPresent(ota, forKey: .ota)
     }
 }
