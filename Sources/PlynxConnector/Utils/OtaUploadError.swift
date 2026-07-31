@@ -21,6 +21,12 @@ public enum OtaUploadError: Error, LocalizedError, Sendable {
     /// Binario più grande del massimo consentito per singolo file.
     case fileTooLarge(sizeBytes: Int64, maxBytes: Int64)
 
+    /// Il binario non entra nello spazio che la scheda di destinazione dichiara
+    /// per gli aggiornamenti (`ota-max` del blnkinf). Il server rifiuta PRIMA di
+    /// registrare la versione: niente quota consumata, niente versione salvata.
+    /// `otaMaxBytes == 0` = la scheda dichiara di non poter fare OTA affatto.
+    case boardOtaSpace(sizeBytes: Int64, otaMaxBytes: Int64, deviceName: String?)
+
     /// Raggiunto il numero massimo di versioni conservate: cancellarne qualcuna.
     case tooManyVersions(count: Int, limit: Int)
 
@@ -51,6 +57,13 @@ public enum OtaUploadError: Error, LocalizedError, Sendable {
             return "Firmware storage full (\(used) of \(quota) bytes used). Delete an old version."
         case .fileTooLarge(let size, let max):
             return "Firmware too large (\(size) bytes, max \(max))."
+        case .boardOtaSpace(let size, let otaMax, let name):
+            let board = name ?? "this board"
+            guard otaMax > 0 else {
+                return "\(board) cannot be updated over the air: it reports no space for updates."
+            }
+            return "Too big for \(board): \(size) bytes against \(otaMax) bytes of update space. "
+                + "Nothing was uploaded."
         case .tooManyVersions(_, let limit):
             return "Too many stored firmware versions (limit \(limit)). Delete an old one."
         case .missingBuildMarker:
@@ -95,6 +108,16 @@ public enum OtaUploadError: Error, LocalizedError, Sendable {
             return .quotaExceeded(usedBytes: int64("usedBytes"), quotaBytes: int64("quotaBytes"))
         case "size":
             return .fileTooLarge(sizeBytes: int64("sizeBytes"), maxBytes: int64("maxBytes"))
+        case "otaSpace":
+            //`otaMaxBytes` arriva sempre nel corpo del 413; leggerlo con int64()
+            //(che a chiave assente vale 0) direbbe "questa scheda non può fare
+            //OTA", che è un'altra cosa. Meglio nessun numero che uno sbagliato.
+            let otaMax = (json?["otaMaxBytes"] as? NSNumber)?.int64Value
+            guard let otaMax = otaMax else {
+                return .serverRejected(status: status, reason: reason)
+            }
+            return .boardOtaSpace(sizeBytes: int64("sizeBytes"), otaMaxBytes: otaMax,
+                                  deviceName: json?["deviceName"] as? String)
         case "versions":
             return .tooManyVersions(count: int("count"), limit: int("limit"))
         case "build":

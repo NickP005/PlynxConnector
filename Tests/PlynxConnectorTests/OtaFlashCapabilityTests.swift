@@ -134,4 +134,47 @@ final class OtaFlashCapabilityTests: XCTestCase {
         //il totale continua a contare TUTTI i follower.
         XCTAssertEqual(new.sent + new.pending + new.skipped, new.total)
     }
+
+    // MARK: Rifiuto dell'upload
+
+    /// Il 413 `otaSpace` diventa un caso tipizzato coi due numeri, non la
+    /// stringa grezza del server: senza questo l'utente leggerebbe
+    /// "Upload rejected by the server (413: otaSpace)", che non è una frase.
+    func testUploadRejectionForBoardSpaceIsTyped() {
+        let body = #"{"reason":"otaSpace","sizeBytes":1400000,"otaMaxBytes":1310720,"deviceName":"Serra"}"#
+        let error = OtaUploadError.from(status: 413, body: Data(body.utf8))
+
+        guard case .boardOtaSpace(let size, let otaMax, let name) = error else {
+            return XCTFail("atteso .boardOtaSpace, ottenuto \(error)")
+        }
+        XCTAssertEqual(size, 1_400_000)
+        XCTAssertEqual(otaMax, 1_310_720)
+        XCTAssertEqual(name, "Serra")
+        XCTAssertNotNil(error.errorDescription?.contains("Serra"))
+    }
+
+    /// `ota-max 0` ha una frase sua: non "serve un binario più piccolo" ma
+    /// "questa scheda via rete non si aggiorna e basta".
+    func testUploadRejectionDistinguishesZeroSpace() {
+        let body = #"{"reason":"otaSpace","sizeBytes":900000,"otaMaxBytes":0,"deviceName":"Uno"}"#
+        let error = OtaUploadError.from(status: 413, body: Data(body.utf8))
+
+        guard case .boardOtaSpace(_, let otaMax, _) = error else {
+            return XCTFail("atteso .boardOtaSpace, ottenuto \(error)")
+        }
+        XCTAssertEqual(otaMax, 0)
+        XCTAssertEqual(error.errorDescription?.contains("no space for updates"), true)
+    }
+
+    /// Corpo `otaSpace` senza `otaMaxBytes`: leggerlo come 0 direbbe "questa
+    /// scheda non può fare OTA", che è un'altra cosa. Meglio nessun numero.
+    func testUploadRejectionWithoutTheNumberDoesNotInventZero() {
+        let error = OtaUploadError.from(status: 413, body: Data(#"{"reason":"otaSpace"}"#.utf8))
+
+        guard case .serverRejected(let status, let reason) = error else {
+            return XCTFail("atteso .serverRejected, ottenuto \(error)")
+        }
+        XCTAssertEqual(status, 413)
+        XCTAssertEqual(reason, "otaSpace")
+    }
 }
