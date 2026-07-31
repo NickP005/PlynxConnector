@@ -22,6 +22,9 @@ public struct OtaUploadResult: Sendable, Codable, Hashable {
     public let size: Int64
     public let sha256: String?
     public let fwVer: String?
+    /// Versione della libreria Plynx compilata dentro il binario (tag `ver`),
+    /// quando il .bin la dichiara. Additivo: `nil` su server più vecchi.
+    public let libVer: String?
     public let fwType: String?
     public let buildDate: String?
     /// Il binario dichiara il connection manager.
@@ -36,7 +39,8 @@ public struct OtaUploadResult: Sendable, Codable, Hashable {
     public init(lineageId: String, lineageName: String?, versionId: String, n: Int,
                 fileName: String?, size: Int64, sha256: String?, fwVer: String?,
                 fwType: String?, buildDate: String?, cmFlag: Bool,
-                usedBytes: Int64, quotaBytes: Int64, cmMissing: Bool) {
+                usedBytes: Int64, quotaBytes: Int64, cmMissing: Bool,
+                libVer: String? = nil) {
         self.lineageId = lineageId
         self.lineageName = lineageName
         self.versionId = versionId
@@ -45,6 +49,7 @@ public struct OtaUploadResult: Sendable, Codable, Hashable {
         self.size = size
         self.sha256 = sha256
         self.fwVer = fwVer
+        self.libVer = libVer
         self.fwType = fwType
         self.buildDate = buildDate
         self.cmFlag = cmFlag
@@ -72,6 +77,7 @@ public struct OtaUploadResult: Sendable, Codable, Hashable {
         self.size = try c.decodeIfPresent(Int64.self, forKey: .size) ?? 0
         self.sha256 = try c.decodeIfPresent(String.self, forKey: .sha256)
         self.fwVer = try c.decodeIfPresent(String.self, forKey: .fwVer)
+        self.libVer = try c.decodeIfPresent(String.self, forKey: .libVer)
         self.fwType = try c.decodeIfPresent(String.self, forKey: .fwType)
         self.buildDate = try c.decodeIfPresent(String.self, forKey: .buildDate)
         self.cmFlag = try c.decodeIfPresent(Bool.self, forKey: .cmFlag) ?? false
