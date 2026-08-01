@@ -117,7 +117,7 @@ public struct Widget: Codable, Sendable, Identifiable {
     /// Auto return to center when released
     public var autoReturnOn: Bool?
     
-    // MARK: - RGB (ZeRGBa) specific
+    // MARK: - RGB picker specific
     
     /// Split mode for RGB - sends R/G/B to separate pins
     public var splitMode: Bool?
