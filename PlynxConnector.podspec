@@ -1,11 +1,12 @@
 Pod::Spec.new do |s|
   s.name             = 'PlynxConnector'
-  s.version          = '1.0.0'
-  s.summary          = 'Swift iOS connector for Plynx/Blynk IoT server'
+  s.version          = '2.6.0'
+  s.summary          = 'Swift implementation of the wire protocol used by Plynx apps'
   s.description      = <<-DESC
-    PlynxConnector is a Swift library that provides a complete interface to control 
-    IoT devices through a Plynx (Blynk Legacy) server using the binary TCP/SSL protocol.
-    Features include async/await support, automatic reconnection, and full protocol coverage.
+    PlynxConnector is a Swift library that implements the communication protocol used
+    by the Plynx apps: binary TCP over TLS, Bluetooth LE transport, typed commands and
+    events, and the data models for projects, devices and widgets. Async/await API with
+    automatic reconnection and no third-party dependencies.
   DESC
 
   s.homepage         = 'https://github.com/NickP005/PlynxConnector'
