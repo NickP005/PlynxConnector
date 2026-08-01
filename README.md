@@ -1,29 +1,17 @@
 # PlynxConnector
 
-Swift iOS connector library for the Plynx (Blynk) server. Provides a complete interface to control IoT devices through the Plynx server using the binary TCP/SSL protocol.
+PlynxConnector is a Swift package that implements the communication protocol used by the Plynx apps. It covers the transport (TCP over TLS to a Plynx server, or Bluetooth LE straight to a board), the binary framing, the command and event vocabulary, and the data models for projects, devices and widgets.
 
-## Legal Notice
+It is the networking layer of the Plynx iOS app, packaged so the same code can be reused across Apple platforms.
 
-This library is an **independent clean-room implementation** of the Blynk communication protocol. 
+## What it provides
 
-### What This Means:
-- ✅ **No code copied** from Blynk server or mobile apps
-- ✅ **Protocol reverse-engineered** for interoperability (legal under EU Directive 2009/24/EC and US fair use)
-- ✅ **APIs are not copyrightable** (see *Oracle v. Google*, 593 U.S. ___ (2021))
-- ✅ **Board names** (ESP8266, Arduino, etc.) are trademarks of their respective hardware manufacturers
-- ✅ **Widget names** (Button, Slider, etc.) are functional descriptors, not creative works
-
-### Trademarks:
-- **Blynk** is a trademark of Blynk Inc.
-- Hardware names are trademarks of their respective owners (Espressif, Arduino, Raspberry Pi Foundation, etc.)
-
-### Disclaimer:
-This project is **not affiliated with, endorsed by, or connected to Blynk Inc.**
-This software is provided "as is" without warranty of any kind.
-
-### License:
-**© 2025 NickP005. All Rights Reserved.**  
-See [LICENSE](LICENSE) for terms. Contact for licensing inquiries.
+- **Server transport** — TCP socket with TLS, keepalive, ping and automatic reconnection.
+- **Direct BLE transport** — talk to a Plynx board over CoreBluetooth, without a server or Wi-Fi.
+- **Typed protocol layer** — commands, server response codes and events as Swift enums, with framing and gzip handled internally.
+- **Data models** — `DashBoard`, `Device`, `Widget`, `Tag`, `TileTemplate`, `Report`, `EventorRule`, plus sharing and catalog types. All `Codable`, and tolerant of unknown or malformed fields (dropped items are reported in `lastProfileDecodeWarnings`).
+- **async/await API** — `send(_:)` returns the matching server response; live updates arrive on an `AsyncStream` of events.
+- **No third-party dependencies** — Foundation, Network and CoreBluetooth only.
 
 ## Requirements
 
@@ -33,24 +21,17 @@ See [LICENSE](LICENSE) for terms. Contact for licensing inquiries.
 
 ## Installation
 
-### Swift Package Manager (Recommended)
+### Swift Package Manager
 
-Add PlynxConnector to your project via Xcode:
+In Xcode: File → Add Package Dependencies, then enter `https://github.com/NickP005/PlynxConnector.git` and pick a version.
 
-1. File → Add Package Dependencies...
-2. Enter: `https://github.com/NickP005/PlynxConnector.git`
-3. Select version or branch
-4. Click "Add Package"
-
-Or add to your `Package.swift`:
+Or in `Package.swift`:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/NickP005/PlynxConnector.git", from: "1.0.0")
+    .package(url: "https://github.com/NickP005/PlynxConnector.git", from: "2.6.0")
 ]
 ```
-
-Then add to your target:
 
 ```swift
 .target(
@@ -61,78 +42,66 @@ Then add to your target:
 
 ### CocoaPods
 
-Add to your `Podfile`:
-
 ```ruby
-pod 'PlynxConnector', '~> 1.0'
+pod 'PlynxConnector', :git => 'https://github.com/NickP005/PlynxConnector.git', :tag => '2.6.0'
 ```
 
-Then run:
+### Manual
 
-```bash
-pod install
-```
+Drag `Sources/PlynxConnector` into your Xcode project. There is nothing else to link beyond the system frameworks.
 
-### Manual Installation
+## Quick start
 
-1. Download or clone this repository
-2. Drag the `Sources/PlynxConnector` folder into your Xcode project
-3. Make sure "Copy items if needed" is checked
-4. The library uses only Foundation and Network frameworks (no external dependencies)
-
-## Quick Start
+The module is `PlynxConnector`; the main type is the actor `Connector`.
 
 ```swift
-import Foundation
+import PlynxConnector
 
-// Create connector
-let plynx = PlynxConnector(host: "192.168.1.100", port: 9443)
+let plynx = Connector(host: "192.168.1.100", port: 9443)
 
 Task {
     do {
-        // Connect and login
-        try await plynx.connect(email: "user@example.com", password: "mypassword", appName: "MyApp")
-        print("Connected!")
-        
-        // Activate a dashboard (required before hardware commands)
-        _ = try await plynx.send(.activateDashboard(dashId: 1))
-        
-        // Write to virtual pin
-        _ = try await plynx.send(.writeVirtualPin(dashId: 1, deviceId: 0, pin: 1, value: "255"))
-        
+        try await plynx.connect(email: "user@example.com", password: "secret", appName: "MyApp")
+
+        // A project must be activated before hardware commands reach the device
+        _ = try await plynx.activateDashboard(1)
+
+        _ = try await plynx.writeVirtualPin(dashId: 1, deviceId: 0, pin: 1, value: "255")
     } catch {
-        print("Error: \(error)")
+        print("Plynx error: \(error)")
     }
 }
 ```
 
-## Listening for Events
+## Events
+
+Everything the server pushes arrives on `events`, an `AsyncStream<Event>`:
 
 ```swift
 Task {
     for await event in plynx.events {
         switch event {
         case .connected:
-            print("Connected to server")
-            
+            print("Socket up")
+
         case .loginSuccess:
-            print("Logged in successfully")
-            
+            print("Authenticated")
+
         case .virtualPinUpdate(let dashId, let deviceId, let pin, let values):
-            print("Dashboard \(dashId), Device \(deviceId): V\(pin) = \(values)")
-            
+            print("Project \(dashId), device \(deviceId): V\(pin) = \(values)")
+
         case .hardwareConnected(let dashId, let deviceId):
-            print("Device \(deviceId) connected")
-            
-        case .hardwareDisconnected(let dashId, let deviceId):
-            print("Device \(deviceId) disconnected")
-            
+            print("Device \(deviceId) of project \(dashId) is online")
+
+        case .hardwareDisconnected(_, let deviceId):
+            print("Device \(deviceId) went offline")
+
         case .disconnected(let error):
-            print("Disconnected: \(error?.localizedDescription ?? "unknown")")
-            
+            print("Disconnected: \(error?.localizedDescription ?? "no reason given")")
+
         case .reconnecting(let attempt):
-            print("Reconnecting... attempt \(attempt)")
-            
+            print("Reconnecting, attempt \(attempt)")
+
         default:
             break
         }
@@ -140,148 +109,78 @@ Task {
 }
 ```
 
-## Connection Status Properties
+## Connection state
 
-Check connection and authentication status at any time:
+`Connector` is an actor, so its state is read with `await`:
 
 ```swift
-// Check if socket is connected
-if plynx.socketConnected {
-    print("Socket connected")
-}
-
-// Check if authenticated
-if plynx.authenticated {
-    print("Logged in and authenticated")
-}
-
-// Get active dashboard ID (if any)
-if let dashId = plynx.activeDashboardId {
-    print("Active dashboard: \(dashId)")
-}
-
-// Combined check (async)
-if await plynx.isConnected {
-    print("Connected and authenticated")
-}
+if await plynx.socketConnected { /* transport is up */ }
+if await plynx.authenticated { /* login accepted */ }
+if let dashId = await plynx.activeDashboardId { /* project currently active */ }
+if await plynx.isConnected { /* connected and authenticated */ }
 ```
 
-## Using Callbacks
+## Callbacks
 
-In addition to the async stream, you can register callbacks for specific events:
+Besides the event stream, the connector exposes callback properties for code running inside its isolation domain:
 
 ```swift
-let plynx = PlynxConnector(host: "192.168.1.100", port: 9443)
-
-// Connection state changes
-plynx.onConnectionStateChanged = { connected, authenticated in
-    print("Connection: connected=\(connected), authenticated=\(authenticated)")
-}
-
-// Virtual pin updates from hardware
-plynx.onVirtualPinUpdate = { dashId, deviceId, pin, values in
-    print("V\(pin) = \(values)")
-    // Update UI here
-}
-
-// Digital pin updates
-plynx.onDigitalPinUpdate = { dashId, deviceId, pin, value in
-    print("D\(pin) = \(value)")
-}
-
-// Analog pin updates
-plynx.onAnalogPinUpdate = { dashId, deviceId, pin, value in
-    print("A\(pin) = \(value)")
-}
-
-// Widget property changes (from hardware setProperty)
-plynx.onWidgetPropertyChanged = { dashId, deviceId, pin, property, value in
-    print("Property \(property.rawValue) on pin \(pin) = \(value)")
-}
-
-// Hardware device connected
-plynx.onHardwareConnected = { dashId, deviceId in
-    print("Device \(deviceId) is now online")
-}
-
-// Hardware device disconnected
-plynx.onHardwareDisconnected = { dashId, deviceId in
-    print("Device \(deviceId) went offline")
-}
-
-// Raw hardware messages
-plynx.onHardwareMessage = { dashId, deviceId, body in
-    print("Raw message from device \(deviceId): \(body)")
-}
+var onVirtualPinUpdate: ((Int, Int, Int, [String]) -> Void)?     // dashId, deviceId, pin, values
+var onDigitalPinUpdate: ((Int, Int, Int, Int) -> Void)?          // dashId, deviceId, pin, value
+var onAnalogPinUpdate: ((Int, Int, Int, Int) -> Void)?           // dashId, deviceId, pin, value
+var onWidgetPropertyChanged: ((Int, Int, Int, WidgetProperty, String) -> Void)?
+var onHardwareConnected: ((Int, Int) -> Void)?                   // dashId, deviceId
+var onHardwareDisconnected: ((Int, Int) -> Void)?                // dashId, deviceId
+var onConnectionStateChanged: ((Bool, Bool) -> Void)?            // connected, authenticated
+var onHardwareMessage: ((Int, Int, String) -> Void)?             // dashId, deviceId, raw body
 ```
 
-## Available Actions
+From outside the actor, use `events`.
 
-### Authentication
+## Commands
+
+Every command is an `Action` case passed to `send(_:)`; the frequent ones also have convenience methods.
+
+### Account
 
 ```swift
-// Login
-try await plynx.connect(email: "user@example.com", password: "pass", appName: "MyApp")
-
-// Login with share token
+try await plynx.connect(email: "user@example.com", password: "secret", appName: "MyApp")
 try await plynx.connectWithShareToken("abc123")
+try await plynx.register(email: "new@example.com", password: "secret", appName: "MyApp")
+try await plynx.requestPasswordReset(email: "user@example.com", appName: "MyApp")
 
-// Logout
 _ = try await plynx.send(.logout(uid: nil))
-
-// Register new account
-_ = try await plynx.send(.register(email: "new@example.com", password: "pass", appName: "MyApp"))
 ```
 
-### Dashboard Management
+### Projects
 
 ```swift
-// Load all dashboards
-_ = try await plynx.send(.loadProfile(dashId: nil, published: false))
+let profile = try await plynx.loadProfile()          // all projects and apps
 
-// Create dashboard
-let dashboard = DashBoard(id: 0, name: "My Dashboard")
-_ = try await plynx.send(.createDashboard(dashboard: dashboard, generateToken: true))
+let project = DashBoard(id: 0, name: "Greenhouse")
+_ = try await plynx.send(.createDashboard(dashboard: project, generateToken: true))
 
-// Activate dashboard (required for hardware commands to work)
-_ = try await plynx.send(.activateDashboard(dashId: 1))
-
-// Deactivate dashboard
+_ = try await plynx.activateDashboard(1)
 _ = try await plynx.send(.deactivateDashboard(dashId: 1))
-
-// Delete dashboard
 _ = try await plynx.send(.deleteDashboard(dashId: 1))
 ```
 
-### Device Management
+### Devices
 
 ```swift
-// Create device
-let device = Device(id: 0, name: "My ESP8266", boardType: .ESP8266)
-let response = try await plynx.send(.createDevice(dashId: 1, device: device))
+let device = Device(id: 0, name: "Greenhouse ESP", boardType: .ESP8266)
+_ = try await plynx.send(.createDevice(dashId: 1, device: device))
 
-// Get all devices
 _ = try await plynx.send(.getDevices(dashId: 1))
-
-// Get single device
 _ = try await plynx.send(.getDevice(dashId: 1, deviceId: 0))
-
-// Update device
-var updatedDevice = device
-updatedDevice.name = "Updated Name"
-_ = try await plynx.send(.updateDevice(dashId: 1, device: updatedDevice))
-
-// Delete device
+_ = try await plynx.send(.updateDevice(dashId: 1, device: device))
 _ = try await plynx.send(.deleteDevice(dashId: 1, deviceId: 0))
-
-// Refresh device token
 _ = try await plynx.send(.refreshToken(dashId: 1, deviceId: 0))
 ```
 
-### Widget Management
+### Widgets
 
 ```swift
-// Create widget
 var button = Widget(id: 0, type: .button)
 button.x = 0
 button.y = 0
@@ -289,122 +188,115 @@ button.width = 2
 button.height = 1
 button.pin = 1
 button.pinType = .virtual
+
 _ = try await plynx.send(.createWidget(dashId: 1, widget: button, tileId: nil))
 
-// Update widget
-button.label = "My Button"
+button.label = "Pump"
 _ = try await plynx.send(.updateWidget(dashId: 1, widget: button))
-
-// Delete widget
 _ = try await plynx.send(.deleteWidget(dashId: 1, widgetId: button.id))
 
-// Set widget property
-_ = try await plynx.send(.setWidgetProperty(dashId: 1, deviceId: 0, pin: 1, property: .label, value: "New Label"))
+_ = try await plynx.send(.setWidgetProperty(dashId: 1, deviceId: 0, pin: 1, property: .label, value: "Pump"))
 ```
 
-### Hardware Communication
+### Hardware
 
 ```swift
-// Write to virtual pin
-_ = try await plynx.send(.writeVirtualPin(dashId: 1, deviceId: 0, pin: 1, value: "255"))
-
-// Read from virtual pin
+_ = try await plynx.writeVirtualPin(dashId: 1, deviceId: 0, pin: 1, value: "255")
 _ = try await plynx.send(.readVirtualPin(dashId: 1, deviceId: 0, pin: 1))
 
-// Raw hardware command
+// Raw command, fields separated by NUL
 _ = try await plynx.send(.hardware(dashId: 1, deviceId: 0, body: "vw\u{0}1\u{0}255"))
 
-// Sync hardware state
 _ = try await plynx.send(.hardwareSync(dashId: 1, target: nil))
-
-// Sync app state
 _ = try await plynx.send(.appSync(dashId: 1, widgetIds: nil))
 ```
 
-### Tag Management
+### Tags
 
 ```swift
-// Create tag
-let tag = Tag(id: 100000, name: "Living Room", deviceIds: [0, 1])
+let tag = Tag(id: 100000, name: "Living room", deviceIds: [0, 1])
 _ = try await plynx.send(.createTag(dashId: 1, tag: tag))
-
-// Get all tags
 _ = try await plynx.send(.getTags(dashId: 1))
-
-// Update tag
 _ = try await plynx.send(.updateTag(dashId: 1, tag: tag))
-
-// Delete tag
 _ = try await plynx.send(.deleteTag(dashId: 1, tagId: 100000))
 ```
 
-### Sharing
+### Sharing and the public catalog
 
 ```swift
-// Enable sharing
+// Read-only access to a project
 _ = try await plynx.send(.setSharing(dashId: 1, enabled: true))
-
-// Get share token
 _ = try await plynx.send(.getShareToken(dashId: 1))
-
-// Refresh share token
 _ = try await plynx.send(.refreshShareToken(dashId: 1))
+
+// Copy a project between accounts
+let code = try await plynx.getCloneCode(dashId: 1)
+let imported = try await plynx.importProject(cloneCode: code)
+
+// Publish and browse
+let published = try await plynx.publishProject(dashId: 1)
+_ = try await plynx.setProjectPublic(publishedId: published.id, isPublic: true,
+                                     username: "nick", description: "Greenhouse controller")
+let entries = try await plynx.listPublicProjects(query: "greenhouse", offset: 0, limit: 30)
 ```
 
-### Graph Data
+### History data
 
 ```swift
-// Get enhanced graph data
-_ = try await plynx.send(.getEnhancedGraphData(
-    dashId: 1,
-    deviceId: 0,
-    dataStreams: [0],
-    period: .day,
-    page: nil
-))
+let raw = try await plynx.requestGraphData(dashId: 1, widgetId: 12, targetId: 0, period: .day)
+let series = try await plynx.requestParsedGraphData(dashId: 1, widgetId: 12, targetId: 0, period: .week)
 
-// Export graph data as CSV (sent via email)
-_ = try await plynx.send(.exportGraphData(
-    dashId: 1,
-    widgetId: 1,
-    pinType: .virtual,
-    pin: 1,
-    deviceId: 0
-))
-
-// Delete graph data
-_ = try await plynx.send(.deleteEnhancedGraphData(dashId: 1, widgetId: 1, dataStreamIds: nil))
+_ = try await plynx.send(.exportGraphData(dashId: 1, widgetId: 12, pinType: .virtual, pin: 1, deviceId: 0))
+_ = try await plynx.send(.deleteEnhancedGraphData(dashId: 1, widgetId: 12, dataStreamIds: nil))
 ```
 
-### Email
+### Email and energy
 
 ```swift
-// Send device token via email
 _ = try await plynx.send(.emailToken(dashId: 1, deviceId: 0))
+_ = try await plynx.send(.email(dashId: 1, deviceId: 0, to: "user@example.com", subject: "Test", body: "Hello"))
 
-// Send custom email
-_ = try await plynx.send(.email(dashId: 1, deviceId: 0, to: "user@example.com", subject: "Test", body: "Hello!"))
-```
-
-### Energy (Credits)
-
-```swift
-// Get energy balance
 _ = try await plynx.send(.getEnergy)
-
-// Redeem promotional code
 _ = try await plynx.send(.redeem(code: "PROMO123"))
 ```
 
-## Error Handling
+## Direct BLE connection
+
+`PlynxBLEClient` speaks the same protocol over a GATT service, so a phone can drive a board that has no network at all. It scans, authenticates with the 32-character device token, and then reads and writes pins.
+
+```swift
+let ble = PlynxBLEClient()
+
+Task {
+    for await event in ble.events {
+        switch event {
+        case .stateChanged(let state):
+            print("BLE state: \(state)")
+        case .discovered(let devices):
+            print("Found: \(devices.map(\.name))")
+        case .loginResult(let success):
+            print(success ? "Board authenticated" : "Token rejected")
+        case .pinUpdate(let command, let pin, let values):
+            print("\(command) \(pin) = \(values)")
+        }
+    }
+}
+
+ble.startScan()
+ble.connect(deviceId: discoveredDevice.id, token: deviceToken)
+ble.writeVirtualPin(1, value: "255")
+ble.syncVirtualPin(1)
+```
+
+## Error handling
 
 ```swift
 do {
-    try await plynx.connect(email: "user@example.com", password: "wrong")
+    try await plynx.connect(email: "user@example.com", password: "wrong", appName: "MyApp")
 } catch PlynxError.authenticationFailed(let code) {
-    print("Auth failed: \(code.description)")
+    print("Login refused: \(code)")
 } catch PlynxError.connectionFailed(let underlying) {
-    print("Connection failed: \(underlying?.localizedDescription ?? "unknown")")
+    print("Connection failed: \(underlying?.localizedDescription ?? "no detail")")
 } catch PlynxError.timeout {
     print("Request timed out")
 } catch {
@@ -412,82 +304,44 @@ do {
 }
 ```
 
-## Configuration
+Other cases include `.connectionClosed`, `.notConnected`, `.notAuthenticated`, `.serverError`, `.decodingError`, `.tlsError` and `.cancelled`.
 
-```swift
-let plynx = PlynxConnector(host: "192.168.1.100", port: 9443)
+## Behaviour notes
 
-// Set response timeout (default: 10 seconds)
-plynx.responseTimeout = 15.0
+- **Timeouts** — `responseTimeout` and `pingInterval` both default to 10 seconds.
+- **Reconnection** — after an unexpected drop the connector retries up to 10 times, waiting 2 seconds and growing the delay by 1.5x up to 30 seconds. `.reconnecting(attempt:)` is emitted before each try, `.reconnected` once the session is back. `stopReconnecting()` cancels the loop.
+- **Concurrency** — `Connector` is an actor, so it is safe to use from several tasks; requests are serialised and matched to responses by message id.
 
-// Set ping interval (default: 10 seconds)
-plynx.pingInterval = 10.0
-```
+## Protocol notes
 
-## Auto-Reconnection
+- Default endpoint is port 9443 over TLS. Plain TCP is available with `useSSL: false`. Self-signed server certificates are accepted.
+- App frames use a 7-byte header: 1 byte command, 2 bytes message id (big-endian), 4 bytes body length (big-endian), then the body. Hardware frames use a 5-byte header with a 2-byte length.
+- Body fields are separated by a NUL character. Profile and history payloads arrive gzipped and are inflated by the library.
 
-The connector automatically handles reconnection with exponential backoff:
-- Starts at 1 second delay
-- Doubles on each attempt (1s, 2s, 4s, 8s, ...)
-- Maximum delay: 60 seconds
-- Maximum attempts: 10
-
-You'll receive `.reconnecting(attempt:)` events during reconnection and `.reconnected` when successful.
-
-## Thread Safety
-
-`PlynxConnector` is an `actor`, making it safe to use from multiple tasks concurrently. All operations are automatically serialized.
-
-## Protocol Details
-
-- Uses binary TCP protocol over TLS (port 9443 by default)
-- Messages: 1 byte command + 2 bytes message ID (big-endian) + 2 bytes length (big-endian) + body
-- Body fields are separated by null character (`\0`)
-- Server accepts self-signed certificates (configurable)
-
-## File Structure
+## Repository layout
 
 ```
-PlynxConnector/
-├── Protocol/
-│   ├── CommandCode.swift       # All command codes (40+)
-│   ├── ResponseCode.swift      # Server response codes
-│   └── BlynkMessage.swift      # Message serialization
-├── Models/
-│   ├── Enums/
-│   │   ├── BoardType.swift     # Hardware board types
-│   │   ├── WidgetType.swift    # Widget types (40+)
-│   │   ├── WidgetProperty.swift
-│   │   ├── PinType.swift
-│   │   ├── GraphPeriod.swift
-│   │   ├── DeviceStatus.swift
-│   │   ├── ConnectionType.swift
-│   │   └── Theme.swift
-│   ├── Device.swift
-│   ├── DashBoard.swift
-│   ├── Widget.swift
-│   ├── Tag.swift
-│   ├── TileTemplate.swift
-│   ├── Report.swift
-│   └── App.swift
-├── Actions/
-│   └── Action.swift            # All possible actions
-├── Events/
-│   └── Event.swift             # All possible events
-├── Transport/
-│   └── PlynxSocket.swift       # SSL socket with reconnection
-├── Utils/
-│   ├── PlynxError.swift
-│   └── GzipHelper.swift
-└── PlynxConnector.swift        # Main public interface
+Sources/PlynxConnector/
+├── Protocol/        CommandCode, ResponseCode, BlynkMessage, HardwareMessageParser
+├── Models/          DashBoard, Device, Widget, Tag, TileTemplate, Report, EventorRule,
+│                    sharing and catalog types, and the Enums/ folder
+├── Actions/         Action and its wire encoding
+├── Events/          Event
+├── Transport/       PlynxSocket (TCP/TLS), PlynxBLEClient (CoreBluetooth)
+├── Utils/           PlynxError, GzipHelper, GraphDataParser, SHA256Helper, DecodeWarnings
+├── MockConnector    In-memory connector for previews and tests
+└── PlynxConnector   The Connector actor, public entry point
 ```
+
+## Documentation
+
+- [INTERFACE.md](INTERFACE.md) — full API reference, every command, event and model.
+- [docs/GETTING_STARTED.md](docs/GETTING_STARTED.md) — end-to-end setup, from a bare board to live data.
 
 ## License
 
-**© 2025 NickP005. All Rights Reserved.**
+Copyright (c) 2025 NickP005. All rights reserved. This software is proprietary; see [LICENSE](LICENSE) for the terms. For licensing enquiries, contact the author.
 
-This software is proprietary. See [LICENSE](LICENSE) for terms.
+## Compatibility and origin
 
-For licensing inquiries or commercial use, please contact the author.
-
-This connector is designed to work with the Plynx/Blynk Legacy Server.
+PlynxConnector is an original and independent implementation of the legacy protocol documented publicly, written for interoperability with existing servers and hardware. This project is not affiliated with, sponsored by, or endorsed by Blynk Inc.
