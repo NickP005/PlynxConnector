@@ -25,16 +25,15 @@ For licensing inquiries, contact the copyright holder.
 
 INTEROPERABILITY NOTICE:
 
-This software implements the Blynk communication protocol for interoperability
-purposes only. The protocol implementation is an independent clean-room
-implementation based on:
-- Publicly available documentation
-- Network protocol analysis for compatibility purposes
-- Functional interface descriptions
-
-No source code from Blynk Inc. products was used, referenced, or copied.
-Protocol specifications and APIs are not subject to copyright protection
-(see Oracle America, Inc. v. Google LLC, 593 U.S. ___ (2021)).
+This software implements the Blynk Legacy wire protocol for interoperability
+purposes. The protocol is publicly documented, and the reference server is
+published by Blynk Inc. under the GNU General Public License v3
+(github.com/Peterkn2001/blynk-server, relicensed by Blynk Inc. in 2016).
+This implementation was written independently in Swift with reference to
+that public documentation and source. No Blynk source code is included or
+distributed in this package. Protocol specifications and APIs are not
+subject to copyright protection (see Google LLC v. Oracle America, Inc.,
+593 U.S. 1 (2021); EU Directive 2009/24/EC, art. 6).
 
 Hardware board names (e.g., "ESP8266", "Arduino") are trademarks of their
 respective manufacturers. Widget type names are functional descriptors.
