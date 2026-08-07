@@ -165,17 +165,51 @@ public final class MessageParser: @unchecked Sendable {
         buffer.append(data)
     }
     
+    /// L'esito di UN passo di parsing.
+    ///
+    /// Serve a distinguere tre cose che prima erano tutte `nil`, e la
+    /// confusione fra loro era un difetto: «il buffer non basta ancora»
+    /// (fermarsi ed aspettare) contro «ho consumato un frame che non so
+    /// leggere» (saltarlo e continuare). `parseAll` interrompeva il ciclo in
+    /// entrambi i casi, quindi un frame sconosciuto metteva in canna tutto
+    /// quello che era arrivato DOPO di lui nella stessa lettura TCP: se poi
+    /// non arrivavano altri byte, quei messaggi restavano lì. Il giorno in cui
+    /// il server aggiunge un comando che l'app non conosce, la risposta di
+    /// login che lo segue nello stesso pacchetto non verrebbe consegnata.
+    private enum ParseStep {
+        /// Un messaggio completo e comprensibile.
+        case parsed(ParsedMessage)
+        /// Byte consumati, niente da consegnare: si continua col prossimo.
+        /// Ogni ramo che risponde così consuma almeno un'intestazione, quindi
+        /// il buffer si accorcia sempre e il ciclo termina.
+        case skipped
+        /// Il buffer non contiene un messaggio intero: fermarsi e aspettare.
+        case needMoreData
+    }
+
     /// Try to parse a complete message from the buffer (internal, assumes lock is held)
     private func parseNextInternal() -> ParsedMessage? {
+        // Compatibilità: chi vuole un messaggio solo salta ciò che non capisce
+        // invece di fermarsi, esattamente come parseAll.
+        while true {
+            switch parseStepInternal() {
+            case .parsed(let message): return message
+            case .skipped:             continue
+            case .needMoreData:        return nil
+            }
+        }
+    }
+
+    private func parseStepInternal() -> ParseStep {
         // Need at least header size (7 bytes for mobile protocol)
         guard buffer.count >= BlynkMessage.headerSize else {
-            return nil
+            return .needMoreData
         }
-        
+
         // Copy header bytes to local variables for safety
         let headerBytes = Array(buffer.prefix(BlynkMessage.headerSize))
         guard headerBytes.count >= 7 else {
-            return nil
+            return .needMoreData
         }
         
         let command = headerBytes[0]
@@ -192,7 +226,7 @@ public final class MessageParser: @unchecked Sendable {
             // For responses, lengthOrStatus is the response code, no body
             buffer.removeFirst(BlynkMessage.headerSize)
             let code = ResponseCode(rawValue: Int(lengthOrStatus))
-            return .response(BlynkResponse(messageId: messageId, code: code))
+            return .parsed(.response(BlynkResponse(messageId: messageId, code: code)))
         }
         
         // For other commands, lengthOrStatus is the body length
@@ -204,13 +238,13 @@ public final class MessageParser: @unchecked Sendable {
             if buffer.count >= BlynkMessage.headerSize {
                 buffer.removeFirst(BlynkMessage.headerSize)
             }
-            return nil
+            return .skipped
         }
-        
+
         let totalLength = BlynkMessage.headerSize + bodyLength
-        
+
         guard buffer.count >= totalLength else {
-            return nil
+            return .needMoreData
         }
         
         // Extract body safely - use startIndex to handle Data's index behavior
@@ -223,11 +257,16 @@ public final class MessageParser: @unchecked Sendable {
         buffer.removeFirst(totalLength)
         
         guard let cmd = CommandCode(rawValue: command) else {
-            return nil
+            // Comando che questa versione dell'app non conosce. Il frame e'
+            // gia' stato tolto dal buffer qui sopra, quindi non c'e' niente da
+            // recuperare: si tira dritto col prossimo, invece di fermare la
+            // consegna di tutto quello che segue nella stessa lettura.
+            // E' cio' che rende l'app tollerante a un server piu' nuovo di lei.
+            return .skipped
         }
         // Store raw data for binary commands like loadProfileGzipped
         let message = BlynkMessage(command: cmd, messageId: messageId, body: body, rawData: bodyData)
-        return .command(message)
+        return .parsed(.command(message))
     }
     
     /// Try to parse a complete message from the buffer
@@ -244,8 +283,12 @@ public final class MessageParser: @unchecked Sendable {
         defer { lock.unlock() }
         
         var messages: [ParsedMessage] = []
-        while let message = parseNextInternal() {
-            messages.append(message)
+        loop: while true {
+            switch parseStepInternal() {
+            case .parsed(let message): messages.append(message)
+            case .skipped:             continue          // non ferma la consegna
+            case .needMoreData:        break loop
+            }
         }
         return messages
     }

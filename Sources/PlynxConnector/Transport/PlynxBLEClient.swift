@@ -86,6 +86,29 @@ public final class PlynxBLEClient: NSObject, @unchecked Sendable {
     /// The caller asked to scan; retried automatically once the central powers on.
     private var wantsScan = false
 
+    /// The caller asked to connect before the central was ready; replayed once
+    /// it powers on (see `connect(deviceId:token:)`).
+    private var pendingConnect: (deviceId: UUID, token: String)?
+
+    /// Stable reason strings carried inside `.failed`. They are shown to the
+    /// user (BLEConnectSheet, AddBoardFlowView) AND compared against by the
+    /// App Intents layer to tell "iOS no longer knows this peripheral" from
+    /// "the board did not answer" — two different problems with two different
+    /// things for the user to do. Compare with these constants, never with a
+    /// literal typed by hand.
+    public static let peripheralUnknownMessage = "Device not found. Scan again."
+    public static let connectionTimedOutMessage = "Bluetooth connection timed out"
+
+    /// Must a connect request wait for the central to power on?
+    ///
+    /// Pure on purpose: `CBCentralManager` cannot be instantiated in a unit
+    /// test, but THIS is the rule that broke — any state other than
+    /// `.poweredOn` makes `retrievePeripherals` answer with an empty array,
+    /// and a perfectly good board comes back as "device not found".
+    public static func shouldDeferConnect(centralState: CBManagerState) -> Bool {
+        centralState != .poweredOn
+    }
+
     /// Bumped on every connect/disconnect so a stale connect-timeout closure
     /// (CoreBluetooth has no built-in connect timeout) knows it's superseded.
     private var connectGeneration = 0
@@ -121,45 +144,67 @@ public final class PlynxBLEClient: NSObject, @unchecked Sendable {
 
     /// Connect to a known peripheral (by identifier) and log in with its auth
     /// token. Works after relaunch without a rescan via retrievePeripherals.
+    ///
+    /// ⚠️ If the central is not `.poweredOn` yet the request is PARKED and
+    /// replayed from `centralManagerDidUpdateState`, exactly like `wantsScan`
+    /// does for scanning. Without this, a connect issued in the same instant
+    /// the client is created — which is what happens in a process the system
+    /// just launched to run an App Intent — reaches `retrievePeripherals`
+    /// before CoreBluetooth is ready, gets an empty array back and fails with
+    /// "device not found" on a board that is perfectly fine. It would then
+    /// work on the second try: the classic signature of that race.
     public func connect(deviceId: UUID, token: String) {
         queue.async { [weak self] in
             guard let self else { return }
             self.wantsScan = false
-            if self.central.isScanning { self.central.stopScan() }
-            // Chiudi un'eventuale connessione precedente a un peripheral diverso:
-            // altrimenti resterebbe viva e sporcherebbe il parser condiviso.
-            if let old = self.peripheral, old.identifier != deviceId {
-                self.central.cancelPeripheralConnection(old)
-                self.rxChar = nil
-                self.txChar = nil
-            }
-            self.pendingToken = token
-            self.loggedIn = false
-            let known = self.central.retrievePeripherals(withIdentifiers: [deviceId])
-            guard let target = known.first else {
-                self.emit(.stateChanged(.failed("Device not found. Scan again.")))
+            guard !Self.shouldDeferConnect(centralState: self.central.state) else {
+                self.pendingConnect = (deviceId: deviceId, token: token)
+                // Il tentativo è cominciato davvero: chi aspetta deve poterlo
+                // distinguere dallo stato di partenza.
+                self.emit(.stateChanged(.connecting))
                 return
             }
-            self.peripheral = target
-            target.delegate = self
-            self.emit(.stateChanged(.connecting))
-            self.central.connect(target, options: nil)
+            self.performConnect(deviceId: deviceId, token: token)
+        }
+    }
 
-            // CoreBluetooth non ha un timeout di connessione: se il device è
-            // spento o fuori portata resterebbe "connecting" per sempre e (lato
-            // app) bloccherebbe le scritture su una rotta morta. Diamo un limite
-            // e poi falliamo pulito, così la UI lo mostra e i widget tornano a
-            // passare dal server.
-            self.connectGeneration &+= 1
-            let generation = self.connectGeneration
-            self.queue.asyncAfter(deadline: .now() + self.connectTimeout) { [weak self] in
-                guard let self, self.connectGeneration == generation, !self.loggedIn else { return }
-                self.central.cancelPeripheralConnection(target)
-                self.peripheral = nil
-                self.rxChar = nil
-                self.txChar = nil
-                self.emit(.stateChanged(.failed("Bluetooth connection timed out")))
-            }
+    /// Il vero connect: si chiama SOLO col central `.poweredOn` e già sulla
+    /// coda del client.
+    private func performConnect(deviceId: UUID, token: String) {
+        if self.central.isScanning { self.central.stopScan() }
+        // Chiudi un'eventuale connessione precedente a un peripheral diverso:
+        // altrimenti resterebbe viva e sporcherebbe il parser condiviso.
+        if let old = self.peripheral, old.identifier != deviceId {
+            self.central.cancelPeripheralConnection(old)
+            self.rxChar = nil
+            self.txChar = nil
+        }
+        self.pendingToken = token
+        self.loggedIn = false
+        let known = self.central.retrievePeripherals(withIdentifiers: [deviceId])
+        guard let target = known.first else {
+            self.emit(.stateChanged(.failed(Self.peripheralUnknownMessage)))
+            return
+        }
+        self.peripheral = target
+        target.delegate = self
+        self.emit(.stateChanged(.connecting))
+        self.central.connect(target, options: nil)
+
+        // CoreBluetooth non ha un timeout di connessione: se il device è
+        // spento o fuori portata resterebbe "connecting" per sempre e (lato
+        // app) bloccherebbe le scritture su una rotta morta. Diamo un limite
+        // e poi falliamo pulito, così la UI lo mostra e i widget tornano a
+        // passare dal server.
+        self.connectGeneration &+= 1
+        let generation = self.connectGeneration
+        self.queue.asyncAfter(deadline: .now() + self.connectTimeout) { [weak self] in
+            guard let self, self.connectGeneration == generation, !self.loggedIn else { return }
+            self.central.cancelPeripheralConnection(target)
+            self.peripheral = nil
+            self.rxChar = nil
+            self.txChar = nil
+            self.emit(.stateChanged(.failed(Self.connectionTimedOutMessage)))
         }
     }
 
@@ -167,6 +212,7 @@ public final class PlynxBLEClient: NSObject, @unchecked Sendable {
         queue.async { [weak self] in
             guard let self else { return }
             self.connectGeneration &+= 1   // invalida un eventuale timeout pendente
+            self.pendingConnect = nil      // e una richiesta ancora parcheggiata
             self.parser.reset()
             self.outbound.removeAll()
             self.loggedIn = false
@@ -332,11 +378,26 @@ public final class PlynxBLEClient: NSObject, @unchecked Sendable {
 
 extension PlynxBLEClient: CBCentralManagerDelegate {
     public func centralManagerDidUpdateState(_ central: CBCentralManager) {
-        if central.state == .poweredOn, wantsScan {
-            tryStartScan()
-        } else {
-            emit(.stateChanged(mapState(central.state)))
+        if central.state == .poweredOn {
+            // Una connessione parcheggiata perché il central non era pronto
+            // riparte adesso: è il momento in cui `retrievePeripherals` può
+            // davvero rispondere.
+            if let pending = pendingConnect {
+                pendingConnect = nil
+                performConnect(deviceId: pending.deviceId, token: pending.token)
+                return
+            }
+            if wantsScan {
+                tryStartScan()
+                return
+            }
+        } else if pendingConnect != nil {
+            // Acceso non lo sarà: la richiesta parcheggiata non partirà mai, e
+            // lo stato mappato qui sotto (spento / negato / non supportato)
+            // dice già il perché.
+            pendingConnect = nil
         }
+        emit(.stateChanged(mapState(central.state)))
     }
 
     public func centralManager(_ central: CBCentralManager,
