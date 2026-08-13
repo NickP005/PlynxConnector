@@ -51,6 +51,12 @@ public actor Connector {
     /// Timeout della POST multipart del firmware: un .bin da 2MB su rete
     /// domestica non entra nei 10s delle risposte sul filo.
     public var otaUploadTimeout: TimeInterval = 180.0
+
+    /// Timeout della GET di un'immagine. È una `static let` e non una `var`
+    /// come le sorelle perché la legge un percorso `nonisolated` (la view che
+    /// disegna il widget): una proprietà dell'attore lì dentro andrebbe attesa.
+    /// 30s per 512 KB al massimo: oltre, meglio dire che è andata male.
+    public nonisolated static let imageDownloadTimeout: TimeInterval = 30.0
     
     // MARK: - Callbacks
     
@@ -146,6 +152,53 @@ public actor Connector {
         }
     }
     
+    /// Accesso (o prima registrazione) con un'identità Apple.
+    ///
+    /// Stesso stampo di `connectWithShareToken`: si apre il socket e si manda
+    /// **una** azione, e la risposta si legge con lo stesso codice di sempre —
+    /// così da qui in poi una sessione Apple e una sessione con password sono
+    /// indistinguibili per tutto il resto dell'app.
+    ///
+    /// 🔴 **Chi chiama deve aver già verificato che il server dichiari la cap
+    /// `appleSignIn`.** Un server che non conosce il comando 121 non risponde
+    /// affatto: qui si vedrebbe come un timeout, cioè come «rete lenta», che è
+    /// il messaggio sbagliato per un problema che non passerà mai.
+    public func connectWithAppleIdentity(identityToken: String,
+                                         appName: String = "Blynk",
+                                         fullName: String? = nil) async throws {
+        storedShareToken = nil
+        storedEmail = nil
+        storedPassword = nil
+        storedAppName = appName
+
+        let sock = PlynxSocket(host: host, port: port, useSSL: useSSL)
+        self.socket = sock
+
+        try await sock.connect()
+
+        startMessageHandler()
+
+        eventsContinuation?.yield(.connected)
+
+        let response = try await send(.appleLogin(identityToken: identityToken,
+                                                  appName: appName,
+                                                  fullName: fullName))
+
+        if case .response(_, let code) = response {
+            if code == .ok {
+                authenticated = true
+                socketConnected = true
+                onConnectionStateChanged?(true, true)
+                eventsContinuation?.yield(.loginSuccess)
+                startPingTimer()
+            } else {
+                authenticated = false
+                eventsContinuation?.yield(.loginFailed(code))
+                throw PlynxError.authenticationFailed(code)
+            }
+        }
+    }
+
     public func register(email: String, password: String, appName: String = "Blynk") async throws {
         let sock = PlynxSocket(host: host, port: port, useSSL: useSSL)
         self.socket = sock
@@ -1021,6 +1074,49 @@ public actor Connector {
             URLQueryItem(name: "device", value: device.wireValue)
         ]
         return components.url
+    }
+
+    // MARK: - Immagini depositate sul server (cap "imageCache")
+
+    /// L'URL di lettura di un'immagine: `GET /v1/img/{ref}?t={sig}`, sullo
+    /// **stesso host/porta della connessione app** — la stessa costruzione di
+    /// `otaUploadURL`, perché è lo stesso server: chi si autoospita ha le
+    /// immagini sul proprio Raspberry, non altrove.
+    ///
+    /// `nonisolated`: legge solo host/porta/SSL, che sono immutabili. Serve
+    /// così perché la chiama una view SwiftUI mentre disegna, e un `await`
+    /// sull'attore lì dentro non si può fare.
+    public nonisolated func imageCacheURL(ref: String, signature: String) -> URL? {
+        guard !ref.isEmpty, !signature.isEmpty else { return nil }
+        var components = URLComponents()
+        components.scheme = useSSL ? "https" : "http"
+        components.host = host
+        components.port = Int(port)
+        components.path = "/v1/img/\(ref)"
+        // ⚠️ La firma va nella query come **URLQueryItem**, non interpolata:
+        // è l'unico modo per cui un carattere strano finisce percent-encoded
+        // invece di aprire un altro parametro.
+        components.queryItems = [URLQueryItem(name: "t", value: signature)]
+        return components.url
+    }
+
+    /// Scarica i byte dell'immagine referenziata dal valore di un pin.
+    ///
+    /// Non decodifica niente e non tiene niente: la cache su disco per `ref` la
+    /// fa l'app (il contenuto di un ref non cambia MAI, quindi si scarica una
+    /// volta sola). Qui si traduce solo il codice HTTP in un errore che si può
+    /// raccontare — `410` è «scaduta», e non è un guasto.
+    public nonisolated func downloadCachedImage(ref: String, signature: String) async throws -> Data {
+        guard let url = imageCacheURL(ref: ref, signature: signature) else {
+            throw ImageCacheError.invalidReference
+        }
+        let client = ImageCacheClient(acceptsAnyCertificate: useSSL, timeout: Self.imageDownloadTimeout)
+        defer { client.invalidate() }
+
+        let (status, body) = try await client.get(url)
+        guard status == 200 else { throw ImageCacheError.from(status: status) }
+        guard !body.isEmpty else { throw ImageCacheError.invalidResponse(status: status) }
+        return body
     }
 
     // MARK: - Editor web (pairing stile Chromecast)

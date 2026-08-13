@@ -65,4 +65,29 @@ public struct ServerInfo: Sendable, Codable, Equatable {
     public var supportsEditorSessions: Bool {
         caps.contains("editorSessions")
     }
+
+    /// Il server ospita le immagini dei pin virtuali (cap "imageCache"):
+    /// `POST /v1/img/{token}/V{pin}` deposita i byte e scrive da sé sul pin il
+    /// valore `plynx-img:<ref>.<sig>`, `GET /v1/img/{ref}?t={sig}` li ridà per
+    /// 5 giorni.
+    ///
+    /// 🔴 **Senza questa cap il widget immagine non si offre nemmeno.** Il jar
+    /// legacy non avrà mai questo endpoint: un widget che aspetta per sempre un
+    /// valore che nessuno scriverà è una promessa a vuoto, esattamente come il
+    /// pulsante «Accedi con Apple» su un server che non sa riceverlo.
+    public var supportsImageCache: Bool {
+        caps.contains("imageCache")
+    }
+
+    /// Il server sa accettare un'identità Apple: l'app gli manda il token
+    /// firmato che Apple restituisce, e lui crea o ritrova l'account.
+    ///
+    /// 🔴 **Finché questa cap non c'è, il pulsante non deve nemmeno comparire.**
+    /// Non è prudenza: un «Accedi con Apple» che porta a un errore del server
+    /// è peggio che non averlo — chi lo tocca ha già dato il consenso ad Apple,
+    /// e si ritrova con un'identità concessa e nessun account. Il posto giusto
+    /// per dire «qui non si può» è **prima** del tocco, cioè non disegnandolo.
+    public var supportsAppleSignIn: Bool {
+        caps.contains("appleSignIn")
+    }
 }
