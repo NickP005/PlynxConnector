@@ -6,6 +6,9 @@ public enum Action: Sendable {
 
     case register(email: String, password: String, appName: String)
     case login(email: String, password: String, appName: String)
+    /// Accesso/registrazione con un'identità Apple. Vedi `CommandCode.appleLogin`
+    /// per il formato e per cosa deve fare il server.
+    case appleLogin(identityToken: String, appName: String, fullName: String?)
     case shareLogin(token: String)
     case logout(uid: String?)
     case resetPasswordStart(email: String, appName: String)

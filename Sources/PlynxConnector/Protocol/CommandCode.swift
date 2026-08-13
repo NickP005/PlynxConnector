@@ -155,6 +155,32 @@ public enum CommandCode: UInt8, Sendable {
     /// Scollega un browser abbinato: body = `id` opaco della sessione.
     case editorSessionRevoke = 120
 
+    // MARK: - Accesso con Apple (cap "appleSignIn")
+
+    /// Accesso/registrazione con un'identità Apple.
+    ///
+    /// Body a parti separate da `\0`, come il login normale:
+    ///   `identityToken`  il JWT firmato da Apple (~900 caratteri)
+    ///   `appName`        la stessa chiave del login classico
+    ///   `fullName`       nome e cognome, SOLO al primissimo accesso e solo se
+    ///                    la persona ha scelto di darlo; stringa vuota se no
+    ///
+    /// 🔴 **Il server non lo implementa ancora**, e l'app non lo manda mai a un
+    /// server che non dichiara la cap `appleSignIn`: quel comando parte solo
+    /// dopo che il server ha detto di saperlo ricevere.
+    ///
+    /// Cosa deve fare la parte Java, per chi la scriverà:
+    /// 1. scaricare le chiavi pubbliche da `appleid.apple.com/auth/keys`
+    ///    (si tengono in cache, ruotano);
+    /// 2. verificare la firma del JWT, `iss = https://appleid.apple.com`,
+    ///    `aud = <bundle id dell'app>`, e che non sia scaduto;
+    /// 3. usare `sub` come identità stabile — **non l'email**, che con
+    ///    «Nascondi la mia email» è un alias di inoltro e può cambiare;
+    /// 4. se `sub` è nuovo, creare l'account; se no, ritrovarlo;
+    /// 5. rispondere come al login normale, così l'app non distingue le due
+    ///    strade da lì in poi.
+    case appleLogin = 121
+
     // MARK: - Energy
     case getEnergy = 36
     case addEnergy = 37
@@ -287,6 +313,7 @@ public enum CommandCode: UInt8, Sendable {
         case .editorPairClaim: return "EDITOR_PAIR_CLAIM"
         case .editorSessions: return "EDITOR_SESSIONS"
         case .editorSessionRevoke: return "EDITOR_SESSION_REVOKE"
+        case .appleLogin: return "APPLE_LOGIN"
         }
     }
 }

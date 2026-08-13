@@ -16,6 +16,14 @@ extension Action {
             return BlynkMessage(command: .login, messageId: messageId,
                               bodyParts: [email, passwordHash, "iOS", "1.0.0", appName])
 
+        case .appleLogin(let identityToken, let appName, let fullName):
+            // Stesso stampo del login classico — iOS, versione, appName — così
+            // il server riusa la sua strada. Il nome viaggia vuoto quando Apple
+            // non lo dà: e' vuoto per la maggior parte degli accessi, perche'
+            // Apple lo consegna SOLO la primissima volta.
+            return BlynkMessage(command: .appleLogin, messageId: messageId,
+                              bodyParts: [identityToken, appName, fullName ?? ""])
+
         case .shareLogin(let token):
             return BlynkMessage(command: .shareLogin, messageId: messageId, body: token)
 
